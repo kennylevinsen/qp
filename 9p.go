@@ -3,6 +3,45 @@ package qp
 import "io"
 
 // NineP2000 implements 9P2000 encoding and decoding.
+//
+// Message types
+//
+// 9P2000 defines the following messages:
+//
+// 	VersionRequest:    size[4] Tversion tag[2] msize[4] version[s]
+// 	VersionResponse:   size[4] Rversion tag[2] msize[4] version[s]
+// 	AuthRequest:       size[4] Tauth tag[2] afid[4] uname[s] aname[s]
+// 	AuthResponse:      size[4] Rauth tag[2] aqid[13]
+// 	AttachRequest:     size[4] Tattach tag[2] fid[4] afid[4] uname[s] aname[s]
+// 	AttachResponse:    size[4] Rattach tag[2] qid[13]
+// 	ErrorResponse:     size[4] Rerror tag[2] ename[s]
+// 	FlushRequest:      size[4] Tflush tag[2] oldtag[2]
+// 	FlushResponse:     size[4] Rflush tag[2]
+// 	WalkRequest:       size[4] Twalk tag[2] fid[4] newfid[4] nwname[2] nwname*(wname[s])
+// 	WalkResponse:      size[4] Rwalk tag[2] nwqid[2] nwqid*(wqid[13])
+// 	OpenRequest:       size[4] Topen tag[2] fid[4] mode[1]
+// 	OpenResponse:      size[4] Ropen tag[2] qid[13] iounit[4]
+// 	CreateRequest:     size[4] Tcreate tag[2] fid[4] name[s] perm[4] mode[1]
+// 	CreateResponse:    size[4] Rcreate tag[2] qid[13] iounit[4]
+// 	ReadRequest:       size[4] Tread tag[2] fid[4] offset[8] count[4]
+// 	ReadResponse:      size[4] Rread tag[2] count[4] data[count]
+// 	WriteRequest:      size[4] Twrite tag[2] fid[4] offset[8] count[4] data[count]
+// 	WriteResponse:     size[4] Rwrite tag[2] count[4]
+// 	ClunkRequest:      size[4] Tclunk tag[2] fid[4]
+// 	ClunkResponse:     size[4] Rclunk tag[2]
+// 	RemoveRequest:     size[4] Tremove tag[2] fid[4]
+// 	RemoveResponse:    size[4] Rremove tag[2]
+// 	StatRequest:       size[4] Tstat tag[2] fid[4]
+// 	StatResponse:      size[4] Rstat tag[2] stat[n]
+// 	WriteStatRequest:  size[4] Twstat tag[2] fid[4] stat[n]
+// 	WriteStatResponse: size[4] Rwstat tag[2]
+//
+// Support structures
+//
+// 9P2000 defines the following supporting structures:
+//    Qid:  type[1] version[4] path[8]
+//    Stat: size[2] type[2] dev[4] qid[13] mode[4] atime[4] mtime[4] length[8]
+//              name[s] uid[s] gid[s] muid[s]
 var NineP2000 Protocol = &Codec{
 	M2MT: MessageToMessageType,
 	MT2M: MessageTypeToMessage,
@@ -13,7 +52,7 @@ var NineP2000 Protocol = &Codec{
 // current requests.
 type Tag uint16
 
-// Fid is a "file identifier", is quite similar in concept to a file
+// Fid is a "file identifier", and is quite similar in concept to a file
 // descriptor, and is used to keep track of a file and its potential opening
 // mode. The client is responsible for providing a unique Fid to use. The Fid
 // is passed to all later requests to inform the server what file the
@@ -32,7 +71,7 @@ type FileMode uint32
 // directory or auth.
 type QidType byte
 
-// Qid is the servers unique file identification.
+// Qid is a unique file identification from the server.
 type Qid struct {
 	Type QidType
 
@@ -223,19 +262,20 @@ type VersionRequest struct {
 	Tag Tag
 
 	// MaxSize is the suggested absolute maximum message size for the
-	// connection. The final negotiated value must be honoured.
+	// connection. The final negotiated value must be honoured. This field is
+	// called "msize" in the official implementation.
 	MaxSize uint32
 
 	// Version is the suggested maximum protocol version for the connection.
 	Version string
 }
 
-// GetTag retrieves the current tag
+// GetTag retrieves the current tag.
 func (vr *VersionRequest) GetTag() Tag {
 	return vr.Tag
 }
 
-// SetTag assigns the current tag
+// SetTag assigns the current tag.
 func (vr *VersionRequest) SetTag(t Tag) {
 	vr.Tag = t
 }
@@ -282,19 +322,22 @@ func (vr *VersionRequest) Encode(w io.Writer) error {
 type VersionResponse struct {
 	Tag Tag
 
-	// MaxSize is the negotiated maximum message size for the connection. This value must be honoured.
+	// MaxSize is the negotiated maximum message size for the connection. This
+	// value must be honoured. This field is called "msize" in the official
+	// implementation.
 	MaxSize uint32
 
-	// Version is the negotiated protocol version, or "unknown" if negotiation failed.
+	// Version is the negotiated protocol version, or "unknown" if negotiation
+	// failed.
 	Version string
 }
 
-// GetTag retrieves the current tag
+// GetTag retrieves the current tag.
 func (vr *VersionResponse) GetTag() Tag {
 	return vr.Tag
 }
 
-// SetTag assigns the current tag
+// SetTag assigns the current tag.
 func (vr *VersionResponse) SetTag(t Tag) {
 	vr.Tag = t
 }
@@ -340,22 +383,25 @@ func (vr *VersionResponse) Encode(w io.Writer) error {
 type AuthRequest struct {
 	Tag Tag
 
-	// AuthFid is the fid to be used for authentication
+	// AuthFid is the fid to be used for authentication. This field is called
+	// "afid" in the official implementation.
 	AuthFid Fid
 
-	// Username is the user to authenticate as.
+	// Username is the user to authenticate as. This field is called "uname" in
+	// the official implementation.
 	Username string
 
-	// Service is the service to authenticate access to.
+	// Service is the service to authenticate access to. This field is called
+	// "aname" in the official implementation.
 	Service string
 }
 
-// GetTag retrieves the current tag
+// GetTag retrieves the current tag.
 func (ar *AuthRequest) GetTag() Tag {
 	return ar.Tag
 }
 
-// SetTag assigns the current tag
+// SetTag assigns the current tag.
 func (ar *AuthRequest) SetTag(t Tag) {
 	ar.Tag = t
 }
@@ -406,16 +452,17 @@ func (ar *AuthRequest) Encode(w io.Writer) error {
 type AuthResponse struct {
 	Tag Tag
 
-	// AuthQid is the Qid representing the special authentication file.
+	// AuthQid is the Qid representing the special authentication file. This
+	// field is called "aqid" in the official implementation.
 	AuthQid Qid
 }
 
-// GetTag retrieves the current tag
+// GetTag retrieves the current tag.
 func (ar *AuthResponse) GetTag() Tag {
 	return ar.Tag
 }
 
-// SetTag assigns the current tag
+// SetTag assigns the current tag.
 func (ar *AuthResponse) SetTag(t Tag) {
 	ar.Tag = t
 }
@@ -457,23 +504,26 @@ type AttachRequest struct {
 	// Fid is the fid that will be assigned the root node.
 	Fid Fid
 
-	// AuthFid is the fid of the previously executed authentication protocol, or
-	// NOFID is the service does not need authentication.
+	// AuthFid is the fid of the previously executed authentication protocol,
+	// or NOFID if the service does not need authentication. This field is
+	// called "afid" in the official implementation.
 	AuthFid Fid
 
-	// Username is the user the connection will operate as.
+	// Username is the user the connection will operate as. This field is
+	// called "uname" in the official implementation.
 	Username string
 
-	// Service is the service that will be accessed.
+	// Service is the service that will be accessed. This field is called
+	// "aname" in the official implementation.
 	Service string
 }
 
-// GetTag retrieves the current tag
+// GetTag retrieves the current tag.
 func (ar *AttachRequest) GetTag() Tag {
 	return ar.Tag
 }
 
-// SetTag assigns the current tag
+// SetTag assigns the current tag.
 func (ar *AttachRequest) SetTag(t Tag) {
 	ar.Tag = t
 }
@@ -533,12 +583,12 @@ type AttachResponse struct {
 	Qid Qid
 }
 
-// GetTag retrieves the current tag
+// GetTag retrieves the current tag.
 func (ar *AttachResponse) GetTag() Tag {
 	return ar.Tag
 }
 
-// SetTag assigns the current tag
+// SetTag assigns the current tag.
 func (ar *AttachResponse) SetTag(t Tag) {
 	ar.Tag = t
 }
@@ -577,16 +627,17 @@ func (ar *AttachResponse) Encode(w io.Writer) error {
 type ErrorResponse struct {
 	Tag Tag
 
-	// Error is the error string.
+	// Error is the error string. This field is called "ename" in the official
+	// implementation.
 	Error string
 }
 
-// GetTag retrieves the current tag
+// GetTag retrieves the current tag.
 func (er *ErrorResponse) GetTag() Tag {
 	return er.Tag
 }
 
-// SetTag assigns the current tag
+// SetTag assigns the current tag.
 func (er *ErrorResponse) SetTag(t Tag) {
 	er.Tag = t
 }
@@ -629,12 +680,12 @@ type FlushRequest struct {
 	OldTag Tag
 }
 
-// GetTag retrieves the current tag
+// GetTag retrieves the current tag.
 func (fr *FlushRequest) GetTag() Tag {
 	return fr.Tag
 }
 
-// SetTag assigns the current tag
+// SetTag assigns the current tag.
 func (fr *FlushRequest) SetTag(t Tag) {
 	fr.Tag = t
 }
@@ -674,12 +725,12 @@ type FlushResponse struct {
 	Tag Tag
 }
 
-// GetTag retrieves the current tag
+// GetTag retrieves the current tag.
 func (fr *FlushResponse) GetTag() Tag {
 	return fr.Tag
 }
 
-// SetTag assigns the current tag
+// SetTag assigns the current tag.
 func (fr *FlushResponse) SetTag(t Tag) {
 	fr.Tag = t
 }
@@ -723,12 +774,12 @@ type WalkRequest struct {
 	Names []string
 }
 
-// GetTag retrieves the current tag
+// GetTag retrieves the current tag.
 func (wr *WalkRequest) GetTag() Tag {
 	return wr.Tag
 }
 
-// SetTag assigns the current tag
+// SetTag assigns the current tag.
 func (wr *WalkRequest) SetTag(t Tag) {
 	wr.Tag = t
 }
@@ -800,12 +851,12 @@ type WalkResponse struct {
 	Qids []Qid
 }
 
-// GetTag retrieves the current tag
+// GetTag retrieves the current tag.
 func (wr *WalkResponse) GetTag() Tag {
 	return wr.Tag
 }
 
-// SetTag assigns the current tag
+// SetTag assigns the current tag.
 func (wr *WalkResponse) SetTag(t Tag) {
 	wr.Tag = t
 }
@@ -862,12 +913,12 @@ type OpenRequest struct {
 	Mode OpenMode
 }
 
-// GetTag retrieves the current tag
+// GetTag retrieves the current tag.
 func (or *OpenRequest) GetTag() Tag {
 	return or.Tag
 }
 
-// SetTag assigns the current tag
+// SetTag assigns the current tag.
 func (or *OpenRequest) SetTag(t Tag) {
 	or.Tag = t
 }
@@ -921,12 +972,12 @@ type OpenResponse struct {
 	IOUnit uint32
 }
 
-// GetTag retrieves the current tag
+// GetTag retrieves the current tag.
 func (or *OpenResponse) GetTag() Tag {
 	return or.Tag
 }
 
-// SetTag assigns the current tag
+// SetTag assigns the current tag.
 func (or *OpenResponse) SetTag(t Tag) {
 	or.Tag = t
 }
@@ -987,12 +1038,12 @@ type CreateRequest struct {
 	Mode OpenMode
 }
 
-// GetTag retrieves the current tag
+// GetTag retrieves the current tag.
 func (cr *CreateRequest) GetTag() Tag {
 	return cr.Tag
 }
 
-// SetTag assigns the current tag
+// SetTag assigns the current tag.
 func (cr *CreateRequest) SetTag(t Tag) {
 	cr.Tag = t
 }
@@ -1058,12 +1109,12 @@ type CreateResponse struct {
 	IOUnit uint32
 }
 
-// GetTag retrieves the current tag
+// GetTag retrieves the current tag.
 func (cr *CreateResponse) GetTag() Tag {
 	return cr.Tag
 }
 
-// SetTag assigns the current tag
+// SetTag assigns the current tag.
 func (cr *CreateResponse) SetTag(t Tag) {
 	cr.Tag = t
 }
@@ -1117,12 +1168,12 @@ type ReadRequest struct {
 	Count uint32
 }
 
-// GetTag retrieves the current tag
+// GetTag retrieves the current tag.
 func (rr *ReadRequest) GetTag() Tag {
 	return rr.Tag
 }
 
-// SetTag assigns the current tag
+// SetTag assigns the current tag.
 func (rr *ReadRequest) SetTag(t Tag) {
 	rr.Tag = t
 }
@@ -1176,12 +1227,12 @@ type ReadResponse struct {
 	Data []byte
 }
 
-// GetTag retrieves the current tag
+// GetTag retrieves the current tag.
 func (rr *ReadResponse) GetTag() Tag {
 	return rr.Tag
 }
 
-// SetTag assigns the current tag
+// SetTag assigns the current tag.
 func (rr *ReadResponse) SetTag(t Tag) {
 	rr.Tag = t
 }
@@ -1237,12 +1288,12 @@ type WriteRequest struct {
 	Data []byte
 }
 
-// GetTag retrieves the current tag
+// GetTag retrieves the current tag.
 func (wr *WriteRequest) GetTag() Tag {
 	return wr.Tag
 }
 
-// SetTag assigns the current tag
+// SetTag assigns the current tag.
 func (wr *WriteRequest) SetTag(t Tag) {
 	wr.Tag = t
 }
@@ -1304,12 +1355,12 @@ type WriteResponse struct {
 	Count uint32
 }
 
-// GetTag retrieves the current tag
+// GetTag retrieves the current tag.
 func (wr *WriteResponse) GetTag() Tag {
 	return wr.Tag
 }
 
-// SetTag assigns the current tag
+// SetTag assigns the current tag.
 func (wr *WriteResponse) SetTag(t Tag) {
 	wr.Tag = t
 }
@@ -1351,12 +1402,12 @@ type ClunkRequest struct {
 	Fid Fid
 }
 
-// GetTag retrieves the current tag
+// GetTag retrieves the current tag.
 func (cr *ClunkRequest) GetTag() Tag {
 	return cr.Tag
 }
 
-// SetTag assigns the current tag
+// SetTag assigns the current tag.
 func (cr *ClunkRequest) SetTag(t Tag) {
 	cr.Tag = t
 }
@@ -1395,12 +1446,12 @@ type ClunkResponse struct {
 	Tag Tag
 }
 
-// GetTag retrieves the current tag
+// GetTag retrieves the current tag.
 func (cr *ClunkResponse) GetTag() Tag {
 	return cr.Tag
 }
 
-// SetTag assigns the current tag
+// SetTag assigns the current tag.
 func (cr *ClunkResponse) SetTag(t Tag) {
 	cr.Tag = t
 }
@@ -1436,12 +1487,12 @@ type RemoveRequest struct {
 	Fid Fid
 }
 
-// GetTag retrieves the current tag
+// GetTag retrieves the current tag.
 func (rr *RemoveRequest) GetTag() Tag {
 	return rr.Tag
 }
 
-// SetTag assigns the current tag
+// SetTag assigns the current tag.
 func (rr *RemoveRequest) SetTag(t Tag) {
 	rr.Tag = t
 }
@@ -1480,12 +1531,12 @@ type RemoveResponse struct {
 	Tag Tag
 }
 
-// GetTag retrieves the current tag
+// GetTag retrieves the current tag.
 func (rr *RemoveResponse) GetTag() Tag {
 	return rr.Tag
 }
 
-// SetTag assigns the current tag
+// SetTag assigns the current tag.
 func (rr *RemoveResponse) SetTag(t Tag) {
 	rr.Tag = t
 }
@@ -1521,12 +1572,12 @@ type StatRequest struct {
 	Fid Fid
 }
 
-// GetTag retrieves the current tag
+// GetTag retrieves the current tag.
 func (sr *StatRequest) GetTag() Tag {
 	return sr.Tag
 }
 
-// SetTag assigns the current tag
+// SetTag assigns the current tag.
 func (sr *StatRequest) SetTag(t Tag) {
 	sr.Tag = t
 }
@@ -1568,12 +1619,12 @@ type StatResponse struct {
 	Stat Stat
 }
 
-// GetTag retrieves the current tag
+// GetTag retrieves the current tag.
 func (sr *StatResponse) GetTag() Tag {
 	return sr.Tag
 }
 
-// SetTag assigns the current tag
+// SetTag assigns the current tag.
 func (sr *StatResponse) SetTag(t Tag) {
 	sr.Tag = t
 }
@@ -1637,12 +1688,12 @@ type WriteStatRequest struct {
 	Stat Stat
 }
 
-// GetTag retrieves the current tag
+// GetTag retrieves the current tag.
 func (wsr *WriteStatRequest) GetTag() Tag {
 	return wsr.Tag
 }
 
-// SetTag assigns the current tag
+// SetTag assigns the current tag.
 func (wsr *WriteStatRequest) SetTag(t Tag) {
 	wsr.Tag = t
 }
@@ -1696,12 +1747,12 @@ type WriteStatResponse struct {
 	Tag Tag
 }
 
-// GetTag retrieves the current tag
+// GetTag retrieves the current tag.
 func (wsr *WriteStatResponse) GetTag() Tag {
 	return wsr.Tag
 }
 
-// SetTag assigns the current tag
+// SetTag assigns the current tag.
 func (wsr *WriteStatResponse) SetTag(t Tag) {
 	wsr.Tag = t
 }

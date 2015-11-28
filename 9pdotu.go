@@ -2,7 +2,30 @@ package qp
 
 import "io"
 
-// NineP2000Dotu implements 9P2000.u encoding and decoding.
+// NineP2000Dotu implements 9P2000.u encoding and decoding. 9P2000.u is meant
+// as a unix compatibility extension. 9P is designed for Plan9, and as thus
+// send many things as strings rather than numeric codes, such as user IDs and
+// error codes. It also does not provide any "special file" functionality, as
+// is often used on unix systems. 9P2000.u adds an extra set of numeric IDs to
+// those messages, in parallel with their already existing string variant. It
+// should be noted that these numeric IDs are highly platform and
+// configuration dependent, and not portable by any definition of the term.
+//
+// Message types
+//
+// 9P2000.u replaces the following messages:
+// 	ErrorResponseDotu:    size[4] Rerror tag[2] ename[s] errno[4]
+// 	AuthRequestDotu:      size[4] Tauth tag[2] afid[4] uname[s] aname[s]
+// 	AttachRequestDotu:    size[4] Tattach tag[2] fid[4] afid[4] uname[s] aname[s]
+// 	CreateRequestDotu:    size[4] Tcreate tag[2] fid[4] name[s] perm[4] mode[1] extension[s]
+// 	StatResponseDotu:     size[4] Rstat tag[2] stat[n]
+// 	WriteStatRequestDotu: size[4] Twstat tag[2] fid[4] stat[n]
+//
+// Support structures
+//
+// 9P2000.u replaces the following supporting structures:
+//    StatDotu: size[2] type[2] dev[4] qid[13] mode[4] atime[4] mtime[4] length[8]
+//                  name[s] uid[s] gid[s] muid[s] extensions[s] nuid[4] ngid[4] nmuid[4]
 var NineP2000Dotu Protocol = &Codec{
 	M2MT: MessageToMessageTypeDotu,
 	MT2M: MessageTypeToMessageDotu,
@@ -197,12 +220,12 @@ type AuthRequestDotu struct {
 	UIDno uint32
 }
 
-// GetTag retrieves the current tag
+// GetTag retrieves the current tag.
 func (ar *AuthRequestDotu) GetTag() Tag {
 	return ar.Tag
 }
 
-// SetTag assigns the current tag
+// SetTag assigns the current tag.
 func (ar *AuthRequestDotu) SetTag(t Tag) {
 	ar.Tag = t
 }
@@ -264,7 +287,7 @@ type AttachRequestDotu struct {
 	Fid Fid
 
 	// AuthFid is the fid of the previously executed authentication protocol, or
-	// NOFID is the service does not need authentication.
+	// NOFID if the service does not need authentication.
 	AuthFid Fid
 
 	// Username is the user the connection will operate as.
@@ -277,12 +300,12 @@ type AttachRequestDotu struct {
 	UIDno uint32
 }
 
-// GetTag retrieves the current tag
+// GetTag retrieves the current tag.
 func (ar *AttachRequestDotu) GetTag() Tag {
 	return ar.Tag
 }
 
-// SetTag assigns the current tag
+// SetTag assigns the current tag.
 func (ar *AttachRequestDotu) SetTag(t Tag) {
 	ar.Tag = t
 }
@@ -353,12 +376,12 @@ type ErrorResponseDotu struct {
 	Errno uint32
 }
 
-// GetTag retrieves the current tag
+// GetTag retrieves the current tag.
 func (er *ErrorResponseDotu) GetTag() Tag {
 	return er.Tag
 }
 
-// SetTag assigns the current tag
+// SetTag assigns the current tag.
 func (er *ErrorResponseDotu) SetTag(t Tag) {
 	er.Tag = t
 }
@@ -420,12 +443,12 @@ type CreateRequestDotu struct {
 	Extensions string
 }
 
-// GetTag retrieves the current tag
+// GetTag retrieves the current tag.
 func (cr *CreateRequestDotu) GetTag() Tag {
 	return cr.Tag
 }
 
-// SetTag assigns the current tag
+// SetTag assigns the current tag.
 func (cr *CreateRequestDotu) SetTag(t Tag) {
 	cr.Tag = t
 }
@@ -492,12 +515,12 @@ type StatResponseDotu struct {
 	Stat StatDotu
 }
 
-// GetTag retrieves the current tag
+// GetTag retrieves the current tag.
 func (sr *StatResponseDotu) GetTag() Tag {
 	return sr.Tag
 }
 
-// SetTag assigns the current tag
+// SetTag assigns the current tag.
 func (sr *StatResponseDotu) SetTag(t Tag) {
 	sr.Tag = t
 }
@@ -555,12 +578,12 @@ type WriteStatRequestDotu struct {
 	Stat StatDotu
 }
 
-// GetTag retrieves the current tag
+// GetTag retrieves the current tag.
 func (wsr *WriteStatRequestDotu) GetTag() Tag {
 	return wsr.Tag
 }
 
-// SetTag assigns the current tag
+// SetTag assigns the current tag.
 func (wsr *WriteStatRequestDotu) SetTag(t Tag) {
 	wsr.Tag = t
 }
