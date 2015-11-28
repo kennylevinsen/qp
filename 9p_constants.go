@@ -22,7 +22,7 @@ const (
 	Rauth
 	Tattach
 	Rattach
-	Terror
+	Terror // Not a valid message
 	Rerror
 	Tflush
 	Rflush
@@ -44,7 +44,6 @@ const (
 	Rstat
 	Twstat
 	Rwstat
-	Tlast
 )
 
 // Special message values

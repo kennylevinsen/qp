@@ -121,6 +121,6 @@ func MessageToMessageType(d Message) (MessageType, error) {
 	case *WriteStatResponse:
 		return Rwstat, nil
 	default:
-		return Tlast, ErrUnknownMessageType
+		return 0, ErrUnknownMessageType
 	}
 }
