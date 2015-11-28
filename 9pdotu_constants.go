@@ -1,5 +1,10 @@
 package qp
 
+const (
+	// VersionDotu is the 9P2000.u version string.
+	VersionDotu = "9P2000.u"
+)
+
 // Permissions bits for 9P2000.u
 const (
 	DMSYMLINK   FileMode = 0x02000000

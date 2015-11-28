@@ -6,6 +6,14 @@ const (
 	HeaderSize = 4 + 1
 )
 
+const (
+	// Version is the 9P2000 version string.
+	Version = "9P2000"
+
+	// UnknownVersion is used to indicate failed version negotiation.
+	UnknownVersion = "unknown"
+)
+
 // MessageType constants
 const (
 	Tversion MessageType = 100 + iota
