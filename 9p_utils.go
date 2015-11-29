@@ -1,5 +1,10 @@
 package qp
 
+import "errors"
+
+// ErrUnknownMessageType is used to indicate an unknown type of message.
+var ErrUnknownMessageType = errors.New("unknown message type")
+
 // MessageTypeToMessage returns an empty Message based on the provided message
 // type.
 func MessageTypeToMessage(mt MessageType) (Message, error) {

@@ -1,14 +1,6 @@
 package qp
 
-import (
-	"fmt"
-	"io"
-)
-
-// Errors
-var (
-	ErrUnknownMessageType = fmt.Errorf("unknown message type")
-)
+import "io"
 
 // Default is the protocol used by the raw Encode and Decode functions.
 var Default = NineP2000

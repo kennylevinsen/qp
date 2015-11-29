@@ -1219,7 +1219,7 @@ func (rr *ReadRequest) Encode(w io.Writer) error {
 	return nil
 }
 
-// ReadResponse returns read data.
+// ReadResponse  is used to return the read data.
 type ReadResponse struct {
 	Tag Tag
 
@@ -1347,7 +1347,7 @@ func (wr *WriteRequest) Encode(w io.Writer) error {
 	return nil
 }
 
-// WriteResponse informs of how much data was written.
+// WriteResponse is used to inform of how much data was written.
 type WriteResponse struct {
 	Tag Tag
 

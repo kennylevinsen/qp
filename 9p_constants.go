@@ -1,20 +1,16 @@
 package qp
 
-const (
-	// HeaderSize is the overhead of the size and type fields of the 9P2000
-	// header.
-	HeaderSize = 4 + 1
-)
+// HeaderSize is the overhead of the size and type fields of the 9P2000
+// header.
+const HeaderSize = 4 + 1
 
-const (
-	// Version is the 9P2000 version string.
-	Version = "9P2000"
+// Version is the 9P2000 version string.
+const Version = "9P2000"
 
-	// UnknownVersion is used to indicate failed version negotiation.
-	UnknownVersion = "unknown"
-)
+// UnknownVersion is used to indicate failed version negotiation.
+const UnknownVersion = "unknown"
 
-// MessageType constants
+// MessageType constants.
 const (
 	Tversion MessageType = 100 + iota
 	Rversion
@@ -22,7 +18,7 @@ const (
 	Rauth
 	Tattach
 	Rattach
-	Terror // Not a valid message
+	Terror // Not a valid message.
 	Rerror
 	Tflush
 	Rflush
@@ -46,13 +42,13 @@ const (
 	Rwstat
 )
 
-// Special message values
+// Special message values.
 const (
 	NOTAG Tag = 0xFFFF
 	NOFID Fid = 0xFFFFFFFF
 )
 
-// Opening modes
+// Opening modes.
 const (
 	OREAD OpenMode = iota
 	OWRITE
@@ -64,7 +60,7 @@ const (
 	ORCLOSE
 )
 
-// Permission bits
+// Permission bits.
 const (
 	DMDIR    FileMode = 0x80000000
 	DMAPPEND FileMode = 0x40000000
@@ -77,7 +73,7 @@ const (
 	DMEXEC   FileMode = 0x1
 )
 
-// Qid types
+// Qid types.
 const (
 	QTFILE   QidType = 0x00
 	QTTMP    QidType = 0x04
