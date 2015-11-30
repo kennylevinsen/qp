@@ -41,7 +41,7 @@ func DecodeHdr(r io.Reader) (uint32, MessageType, error) {
 	}
 
 	if mt, err = readMessageType(r); err != nil {
-		return 0, 0, err
+		return size, 0, err
 	}
 
 	return size, mt, nil
@@ -83,14 +83,14 @@ func (c *Codec) Decode(r io.Reader) (Message, error) {
 
 // Encode write a header and message to the provided writer. It returns an
 // error if writing failed.
-func (c *Codec) Encode(w io.Writer, d Message) error {
+func (c *Codec) Encode(w io.Writer, m Message) error {
 	var err error
 	var mt MessageType
-	if mt, err = c.M2MT(d); err != nil {
+	if mt, err = c.M2MT(m); err != nil {
 		return err
 	}
 
-	size := uint32(d.EncodedLength() + HeaderSize)
+	size := uint32(m.EncodedLength() + HeaderSize)
 	if err = writeUint32(w, size); err != nil {
 		return err
 	}
@@ -99,7 +99,7 @@ func (c *Codec) Encode(w io.Writer, d Message) error {
 		return err
 	}
 
-	if err = d.Encode(w); err != nil {
+	if err = m.Encode(w); err != nil {
 		return err
 	}
 	return nil
