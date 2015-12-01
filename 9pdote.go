@@ -28,19 +28,9 @@ var NineP2000Dote Protocol = &Codec{
 // NOTAG. If the restore fails, the client may continue with the connection as
 // a new session.
 type SessionRequestDote struct {
-	Tag Tag
+	Tag
 
 	Key [8]byte
-}
-
-// GetTag retrieves the current tag.
-func (sr *SessionRequestDote) GetTag() Tag {
-	return sr.Tag
-}
-
-// SetTag assigns the current tag.
-func (sr *SessionRequestDote) SetTag(t Tag) {
-	sr.Tag = t
 }
 
 // EncodedLength returns the length the message will be when serialized.
@@ -74,17 +64,7 @@ func (sr *SessionRequestDote) Encode(w io.Writer) error {
 
 // SessionResponseDote is used to indicate a successful session restore.
 type SessionResponseDote struct {
-	Tag Tag
-}
-
-// GetTag retrieves the current tag.
-func (sr *SessionResponseDote) GetTag() Tag {
-	return sr.Tag
-}
-
-// SetTag assigns the current tag.
-func (sr *SessionResponseDote) SetTag(t Tag) {
-	sr.Tag = t
+	Tag
 }
 
 // EncodedLength returns the length the message will be when serialized.
@@ -116,21 +96,11 @@ func (sr *SessionResponseDote) Encode(w io.Writer) error {
 // fid. While redundant, the request significantly reduces the required amount
 // of roundtrips for many small reads.
 type SimpleReadRequestDote struct {
-	Tag Tag
+	Tag
 
 	Fid Fid
 
 	Names []string
-}
-
-// GetTag retrieves the current tag.
-func (srr *SimpleReadRequestDote) GetTag() Tag {
-	return srr.Tag
-}
-
-// SetTag assigns the current tag.
-func (srr *SimpleReadRequestDote) SetTag(t Tag) {
-	srr.Tag = t
 }
 
 // EncodedLength returns the length the message will be when serialized.
@@ -186,19 +156,9 @@ func (srr *SimpleReadRequestDote) Encode(w io.Writer) error {
 
 // SimpleReadResponseDote is used to return the read data.
 type SimpleReadResponseDote struct {
-	Tag Tag
+	Tag
 
 	Data []byte
-}
-
-// GetTag retrieves the current tag.
-func (srr *SimpleReadResponseDote) GetTag() Tag {
-	return srr.Tag
-}
-
-// SetTag assigns the current tag.
-func (srr *SimpleReadResponseDote) SetTag(t Tag) {
-	srr.Tag = t
 }
 
 // EncodedLength returns the length the message will be when serialized.
@@ -246,23 +206,13 @@ func (srr *SimpleReadResponseDote) Encode(w io.Writer) error {
 // file and clunking the fid. While redundant, the request significantly
 // reduces the required amount of roundtrips for many small writes.
 type SimpleWriteRequestDote struct {
-	Tag Tag
+	Tag
 
 	Fid Fid
 
 	Names []string
 
 	Data []byte
-}
-
-// GetTag retrieves the current tag.
-func (swr *SimpleWriteRequestDote) GetTag() Tag {
-	return swr.Tag
-}
-
-// SetTag assigns the current tag.
-func (swr *SimpleWriteRequestDote) SetTag(t Tag) {
-	swr.Tag = t
 }
 
 // EncodedLength returns the length the message will be when serialized.
@@ -332,19 +282,9 @@ func (swr *SimpleWriteRequestDote) Encode(w io.Writer) error {
 
 // SimpleWriteResponseDote is used to inform of how much data was written.
 type SimpleWriteResponseDote struct {
-	Tag Tag
+	Tag
 
 	Count uint32
-}
-
-// GetTag retrieves the current tag.
-func (swr *SimpleWriteResponseDote) GetTag() Tag {
-	return swr.Tag
-}
-
-// SetTag assigns the current tag.
-func (swr *SimpleWriteResponseDote) SetTag(t Tag) {
-	swr.Tag = t
 }
 
 // EncodedLength returns the length the message will be when serialized.

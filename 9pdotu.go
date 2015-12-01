@@ -205,7 +205,7 @@ func (s *StatDotu) Encode(w io.Writer) error {
 // for compatibility with platforms that use numeric user IDs. UIDno takes
 // precedence over Username.
 type AuthRequestDotu struct {
-	Tag Tag
+	Tag
 
 	// AuthFid is the fid to be used for authentication
 	AuthFid Fid
@@ -218,16 +218,6 @@ type AuthRequestDotu struct {
 
 	// UIDno is a UID number for platforms using numeric user IDs.
 	UIDno uint32
-}
-
-// GetTag retrieves the current tag.
-func (ar *AuthRequestDotu) GetTag() Tag {
-	return ar.Tag
-}
-
-// SetTag assigns the current tag.
-func (ar *AuthRequestDotu) SetTag(t Tag) {
-	ar.Tag = t
 }
 
 // EncodedLength returns the length the message will be when serialized.
@@ -281,7 +271,7 @@ func (ar *AuthRequestDotu) Encode(w io.Writer) error {
 // UIDno, for compatibility with platforms that use numeric user IDs. UIDno
 // takes precedence over Username.
 type AttachRequestDotu struct {
-	Tag Tag
+	Tag
 
 	// Fid is the fid that will be assigned the root node.
 	Fid Fid
@@ -298,16 +288,6 @@ type AttachRequestDotu struct {
 
 	// UIDno is a UID number for platforms using numeric user IDs.
 	UIDno uint32
-}
-
-// GetTag retrieves the current tag.
-func (ar *AttachRequestDotu) GetTag() Tag {
-	return ar.Tag
-}
-
-// SetTag assigns the current tag.
-func (ar *AttachRequestDotu) SetTag(t Tag) {
-	ar.Tag = t
 }
 
 // EncodedLength returns the length the message will be when serialized.
@@ -367,23 +347,13 @@ func (ar *AttachRequestDotu) Encode(w io.Writer) error {
 // in an attempt to improve compatibility with platforms that use numeric
 // errors. Errno takes precedence over Error.
 type ErrorResponseDotu struct {
-	Tag Tag
+	Tag
 
 	// Error is the error string.
 	Error string
 
 	// Errno is the error code.
 	Errno uint32
-}
-
-// GetTag retrieves the current tag.
-func (er *ErrorResponseDotu) GetTag() Tag {
-	return er.Tag
-}
-
-// SetTag assigns the current tag.
-func (er *ErrorResponseDotu) SetTag(t Tag) {
-	er.Tag = t
 }
 
 // EncodedLength returns the length the message will be when serialized.
@@ -424,7 +394,7 @@ func (er *ErrorResponseDotu) Encode(w io.Writer) error {
 // CreateRequestDotu is the 9P2000.u version of CreateRequest. It adds
 // Extensions, describing special files on platforms that use them.
 type CreateRequestDotu struct {
-	Tag Tag
+	Tag
 
 	// Fid is the fid of the directory where the file should be created, but
 	// upon successful creation and opening, it changes to the opened file.
@@ -441,16 +411,6 @@ type CreateRequestDotu struct {
 
 	// Extensions describe special files.
 	Extensions string
-}
-
-// GetTag retrieves the current tag.
-func (cr *CreateRequestDotu) GetTag() Tag {
-	return cr.Tag
-}
-
-// SetTag assigns the current tag.
-func (cr *CreateRequestDotu) SetTag(t Tag) {
-	cr.Tag = t
 }
 
 // EncodedLength returns the length the message will be when serialized.
@@ -509,20 +469,10 @@ func (cr *CreateRequestDotu) Encode(w io.Writer) error {
 // StatResponseDotu is the 9P2000.u version of StatResponse. It uses a
 // different stat struct, StatDotu.
 type StatResponseDotu struct {
-	Tag Tag
+	Tag
 
 	// Stat is the requested StatDotu struct.
 	Stat StatDotu
-}
-
-// GetTag retrieves the current tag.
-func (sr *StatResponseDotu) GetTag() Tag {
-	return sr.Tag
-}
-
-// SetTag assigns the current tag.
-func (sr *StatResponseDotu) SetTag(t Tag) {
-	sr.Tag = t
 }
 
 // EncodedLength returns the length the message will be when serialized.
@@ -569,23 +519,13 @@ func (sr *StatResponseDotu) Encode(w io.Writer) error {
 // WriteStatRequestDotu is the 9P2000.u version of WriteStatRequest. It uses a
 // different stat struct, StatDotu.
 type WriteStatRequestDotu struct {
-	Tag Tag
+	Tag
 
 	// Fid is the file to modify the Stat struct for.
 	Fid Fid
 
 	// Stat is the StatDotu struct to apply.
 	Stat StatDotu
-}
-
-// GetTag retrieves the current tag.
-func (wsr *WriteStatRequestDotu) GetTag() Tag {
-	return wsr.Tag
-}
-
-// SetTag assigns the current tag.
-func (wsr *WriteStatRequestDotu) SetTag(t Tag) {
-	wsr.Tag = t
 }
 
 // EncodedLength returns the length the message will be when serialized.

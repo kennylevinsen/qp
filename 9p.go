@@ -52,6 +52,10 @@ var NineP2000 Protocol = &Codec{
 // current requests.
 type Tag uint16
 
+func (t Tag) Tag() Tag {
+	return t
+}
+
 // Fid is a "file identifier", and is quite similar in concept to a file
 // descriptor, and is used to keep track of a file and its potential opening
 // mode. The client is responsible for providing a unique Fid to use. The Fid
@@ -259,7 +263,7 @@ func (s *Stat) Encode(w io.Writer) error {
 // to send or it can receive, as well as the maximum protocol version
 // supported. The tag used for this request must be NOTAG.
 type VersionRequest struct {
-	Tag Tag
+	Tag
 
 	// MaxSize is the suggested absolute maximum message size for the
 	// connection. The final negotiated value must be honoured. This field is
@@ -268,16 +272,6 @@ type VersionRequest struct {
 
 	// Version is the suggested maximum protocol version for the connection.
 	Version string
-}
-
-// GetTag retrieves the current tag.
-func (vr *VersionRequest) GetTag() Tag {
-	return vr.Tag
-}
-
-// SetTag assigns the current tag.
-func (vr *VersionRequest) SetTag(t Tag) {
-	vr.Tag = t
 }
 
 // EncodedLength returns the length the message will be when serialized.
@@ -320,7 +314,7 @@ func (vr *VersionRequest) Encode(w io.Writer) error {
 // must not be larger than MaxSize in the request, and the version must
 // likewise be equal to or lower than the one in the requst.
 type VersionResponse struct {
-	Tag Tag
+	Tag
 
 	// MaxSize is the negotiated maximum message size for the connection. This
 	// value must be honoured. This field is called "msize" in the official
@@ -330,16 +324,6 @@ type VersionResponse struct {
 	// Version is the negotiated protocol version, or "unknown" if negotiation
 	// failed.
 	Version string
-}
-
-// GetTag retrieves the current tag.
-func (vr *VersionResponse) GetTag() Tag {
-	return vr.Tag
-}
-
-// SetTag assigns the current tag.
-func (vr *VersionResponse) SetTag(t Tag) {
-	vr.Tag = t
 }
 
 // EncodedLength returns the length the message will be when serialized.
@@ -381,7 +365,7 @@ func (vr *VersionResponse) Encode(w io.Writer) error {
 // the server. The AuthFid can be used to read/write the authentication
 //  The protocol itself is not part of 9P2000.
 type AuthRequest struct {
-	Tag Tag
+	Tag
 
 	// AuthFid is the fid to be used for authentication. This field is called
 	// "afid" in the official implementation.
@@ -394,16 +378,6 @@ type AuthRequest struct {
 	// Service is the service to authenticate access to. This field is called
 	// "aname" in the official implementation.
 	Service string
-}
-
-// GetTag retrieves the current tag.
-func (ar *AuthRequest) GetTag() Tag {
-	return ar.Tag
-}
-
-// SetTag assigns the current tag.
-func (ar *AuthRequest) SetTag(t Tag) {
-	ar.Tag = t
 }
 
 // EncodedLength returns the length the message will be when serialized.
@@ -450,21 +424,11 @@ func (ar *AuthRequest) Encode(w io.Writer) error {
 // AuthResponse is used to acknowledge the authentication protocol connection,
 // and to return the matching Qid.
 type AuthResponse struct {
-	Tag Tag
+	Tag
 
 	// AuthQid is the Qid representing the special authentication file. This
 	// field is called "aqid" in the official implementation.
 	AuthQid Qid
-}
-
-// GetTag retrieves the current tag.
-func (ar *AuthResponse) GetTag() Tag {
-	return ar.Tag
-}
-
-// SetTag assigns the current tag.
-func (ar *AuthResponse) SetTag(t Tag) {
-	ar.Tag = t
 }
 
 // EncodedLength returns the length the message will be when serialized.
@@ -499,7 +463,7 @@ func (ar *AuthResponse) Encode(w io.Writer) error {
 // AttachRequest is used to establish a connection to a service as a user, and
 // attach a fid to the root of the service.
 type AttachRequest struct {
-	Tag Tag
+	Tag
 
 	// Fid is the fid that will be assigned the root node.
 	Fid Fid
@@ -516,16 +480,6 @@ type AttachRequest struct {
 	// Service is the service that will be accessed. This field is called
 	// "aname" in the official implementation.
 	Service string
-}
-
-// GetTag retrieves the current tag.
-func (ar *AttachRequest) GetTag() Tag {
-	return ar.Tag
-}
-
-// SetTag assigns the current tag.
-func (ar *AttachRequest) SetTag(t Tag) {
-	ar.Tag = t
 }
 
 // EncodedLength returns the length the message will be when serialized.
@@ -577,20 +531,10 @@ func (ar *AttachRequest) Encode(w io.Writer) error {
 
 // AttachResponse acknowledges an attach.
 type AttachResponse struct {
-	Tag Tag
+	Tag
 
 	// Qid is the qid of the root node.
 	Qid Qid
-}
-
-// GetTag retrieves the current tag.
-func (ar *AttachResponse) GetTag() Tag {
-	return ar.Tag
-}
-
-// SetTag assigns the current tag.
-func (ar *AttachResponse) SetTag(t Tag) {
-	ar.Tag = t
 }
 
 // EncodedLength returns the length the message will be when serialized.
@@ -625,21 +569,11 @@ func (ar *AttachResponse) Encode(w io.Writer) error {
 // ErrorResponse is used when the server wants to report and error with the
 // request. There is no ErrorRequest, as such a thing would not make sense.
 type ErrorResponse struct {
-	Tag Tag
+	Tag
 
 	// Error is the error string. This field is called "ename" in the official
 	// implementation.
 	Error string
-}
-
-// GetTag retrieves the current tag.
-func (er *ErrorResponse) GetTag() Tag {
-	return er.Tag
-}
-
-// SetTag assigns the current tag.
-func (er *ErrorResponse) SetTag(t Tag) {
-	er.Tag = t
 }
 
 // EncodedLength returns the length the message will be when serialized.
@@ -674,20 +608,10 @@ func (er *ErrorResponse) Encode(w io.Writer) error {
 // FlushRequest is used to cancel a pending request. The flushed tag can be
 // used after a response have been received.
 type FlushRequest struct {
-	Tag Tag
+	Tag
 
 	// OldTag is the tag of the request to cancel.
 	OldTag Tag
-}
-
-// GetTag retrieves the current tag.
-func (fr *FlushRequest) GetTag() Tag {
-	return fr.Tag
-}
-
-// SetTag assigns the current tag.
-func (fr *FlushRequest) SetTag(t Tag) {
-	fr.Tag = t
 }
 
 // EncodedLength returns the length the message will be when serialized.
@@ -722,17 +646,7 @@ func (fr *FlushRequest) Encode(w io.Writer) error {
 // FlushResponse is used to indicate a successful flush. Do note that
 // FlushResponse have a peculiar behaviour when multiple flushes are pending.
 type FlushResponse struct {
-	Tag Tag
-}
-
-// GetTag retrieves the current tag.
-func (fr *FlushResponse) GetTag() Tag {
-	return fr.Tag
-}
-
-// SetTag assigns the current tag.
-func (fr *FlushResponse) SetTag(t Tag) {
-	fr.Tag = t
+	Tag
 }
 
 // EncodedLength returns the length the message will be when serialized.
@@ -762,7 +676,7 @@ func (fr *FlushResponse) Encode(w io.Writer) error {
 // All but the last name must be directories. If the walk succeeds, the file is
 // assigned to NewFid.
 type WalkRequest struct {
-	Tag Tag
+	Tag
 
 	// Fid is the fid to walk from.
 	Fid Fid
@@ -772,16 +686,6 @@ type WalkRequest struct {
 
 	// Names are the names to try.
 	Names []string
-}
-
-// GetTag retrieves the current tag.
-func (wr *WalkRequest) GetTag() Tag {
-	return wr.Tag
-}
-
-// SetTag assigns the current tag.
-func (wr *WalkRequest) SetTag(t Tag) {
-	wr.Tag = t
 }
 
 // EncodedLength returns the length the message will be when serialized.
@@ -845,20 +749,10 @@ func (wr *WalkRequest) Encode(w io.Writer) error {
 // walk is successful, the amount of qids will be identical to the amount of
 // names.
 type WalkResponse struct {
-	Tag Tag
+	Tag
 
 	// Qids are the qids for the successfully walked files.
 	Qids []Qid
-}
-
-// GetTag retrieves the current tag.
-func (wr *WalkResponse) GetTag() Tag {
-	return wr.Tag
-}
-
-// SetTag assigns the current tag.
-func (wr *WalkResponse) SetTag(t Tag) {
-	wr.Tag = t
 }
 
 // EncodedLength returns the length the message will be when serialized.
@@ -904,23 +798,13 @@ func (wr *WalkResponse) Encode(w io.Writer) error {
 
 // OpenRequest is used to open a fid for reading/writing/executing.
 type OpenRequest struct {
-	Tag Tag
+	Tag
 
 	// Fid is the file to open.
 	Fid Fid
 
 	// Mode is the mode to open file under.
 	Mode OpenMode
-}
-
-// GetTag retrieves the current tag.
-func (or *OpenRequest) GetTag() Tag {
-	return or.Tag
-}
-
-// SetTag assigns the current tag.
-func (or *OpenRequest) SetTag(t Tag) {
-	or.Tag = t
 }
 
 // EncodedLength returns the length the message will be when serialized.
@@ -962,7 +846,7 @@ func (or *OpenRequest) Encode(w io.Writer) error {
 // read/write size that is guaranteed to be sucessfully written/read, or 0 for
 // no such guarantee.
 type OpenResponse struct {
-	Tag Tag
+	Tag
 
 	// Qid is the qid of the opened file.
 	Qid Qid
@@ -970,16 +854,6 @@ type OpenResponse struct {
 	// IOUnit is the maximum amount of data that can be read/written by a single
 	// call, or 0 for no specification.
 	IOUnit uint32
-}
-
-// GetTag retrieves the current tag.
-func (or *OpenResponse) GetTag() Tag {
-	return or.Tag
-}
-
-// SetTag assigns the current tag.
-func (or *OpenResponse) SetTag(t Tag) {
-	or.Tag = t
 }
 
 // EncodedLength returns the length the message will be when serialized.
@@ -1022,7 +896,7 @@ func (or *OpenResponse) Encode(w io.Writer) error {
 // OpenRequest. A directory is created by creating a file with the DMDIR
 // permission bit set.
 type CreateRequest struct {
-	Tag Tag
+	Tag
 
 	// Fid is the fid of the directory where the file should be created, but
 	// upon successful creation and opening, it changes to the opened file.
@@ -1036,16 +910,6 @@ type CreateRequest struct {
 
 	// Mode is the mode the file should be opened under.
 	Mode OpenMode
-}
-
-// GetTag retrieves the current tag.
-func (cr *CreateRequest) GetTag() Tag {
-	return cr.Tag
-}
-
-// SetTag assigns the current tag.
-func (cr *CreateRequest) SetTag(t Tag) {
-	cr.Tag = t
 }
 
 // EncodedLength returns the length the message will be when serialized.
@@ -1099,7 +963,7 @@ func (cr *CreateRequest) Encode(w io.Writer) error {
 // read/write size that is guaranteed to be sucessfully written/read, or 0 for
 // no such guarantee.
 type CreateResponse struct {
-	Tag Tag
+	Tag
 
 	// Qid is the qid of the opened file.
 	Qid Qid
@@ -1107,16 +971,6 @@ type CreateResponse struct {
 	// IOUnit is the maximum amount of data that can be read/written by a single
 	// call, or 0 for no specification.
 	IOUnit uint32
-}
-
-// GetTag retrieves the current tag.
-func (cr *CreateResponse) GetTag() Tag {
-	return cr.Tag
-}
-
-// SetTag assigns the current tag.
-func (cr *CreateResponse) SetTag(t Tag) {
-	cr.Tag = t
 }
 
 // EncodedLength returns the length the message will be when serialized.
@@ -1156,7 +1010,7 @@ func (cr *CreateResponse) Encode(w io.Writer) error {
 
 // ReadRequest is used to read data from an open file.
 type ReadRequest struct {
-	Tag Tag
+	Tag
 
 	// Fid is the fid of the file to read.
 	Fid Fid
@@ -1166,16 +1020,6 @@ type ReadRequest struct {
 
 	// Count is the maximum amount of byte requested.
 	Count uint32
-}
-
-// GetTag retrieves the current tag.
-func (rr *ReadRequest) GetTag() Tag {
-	return rr.Tag
-}
-
-// SetTag assigns the current tag.
-func (rr *ReadRequest) SetTag(t Tag) {
-	rr.Tag = t
 }
 
 // EncodedLength returns the length the message will be when serialized.
@@ -1221,20 +1065,10 @@ func (rr *ReadRequest) Encode(w io.Writer) error {
 
 // ReadResponse  is used to return the read data.
 type ReadResponse struct {
-	Tag Tag
+	Tag
 
 	// Data is the data that was read.
 	Data []byte
-}
-
-// GetTag retrieves the current tag.
-func (rr *ReadResponse) GetTag() Tag {
-	return rr.Tag
-}
-
-// SetTag assigns the current tag.
-func (rr *ReadResponse) SetTag(t Tag) {
-	rr.Tag = t
 }
 
 // EncodedLength returns the length the message will be when serialized.
@@ -1276,7 +1110,7 @@ func (rr *ReadResponse) Encode(w io.Writer) error {
 
 // WriteRequest is used to write to an open file.
 type WriteRequest struct {
-	Tag Tag
+	Tag
 
 	// Fid is the file to write to.
 	Fid Fid
@@ -1286,16 +1120,6 @@ type WriteRequest struct {
 
 	// Data is the data to write.
 	Data []byte
-}
-
-// GetTag retrieves the current tag.
-func (wr *WriteRequest) GetTag() Tag {
-	return wr.Tag
-}
-
-// SetTag assigns the current tag.
-func (wr *WriteRequest) SetTag(t Tag) {
-	wr.Tag = t
 }
 
 // EncodedLength returns the length the message will be when serialized.
@@ -1349,20 +1173,10 @@ func (wr *WriteRequest) Encode(w io.Writer) error {
 
 // WriteResponse is used to inform of how much data was written.
 type WriteResponse struct {
-	Tag Tag
+	Tag
 
 	// Count is the amount of written data.
 	Count uint32
-}
-
-// GetTag retrieves the current tag.
-func (wr *WriteResponse) GetTag() Tag {
-	return wr.Tag
-}
-
-// SetTag assigns the current tag.
-func (wr *WriteResponse) SetTag(t Tag) {
-	wr.Tag = t
 }
 
 // EncodedLength returns the length the message will be when serialized.
@@ -1396,20 +1210,10 @@ func (wr *WriteResponse) Encode(w io.Writer) error {
 
 // ClunkRequest is used to clear a fid, allowing it to be reused.
 type ClunkRequest struct {
-	Tag Tag
+	Tag
 
 	// Fid is the fid to clunk.
 	Fid Fid
-}
-
-// GetTag retrieves the current tag.
-func (cr *ClunkRequest) GetTag() Tag {
-	return cr.Tag
-}
-
-// SetTag assigns the current tag.
-func (cr *ClunkRequest) SetTag(t Tag) {
-	cr.Tag = t
 }
 
 // EncodedLength returns the length the message will be when serialized.
@@ -1443,17 +1247,7 @@ func (cr *ClunkRequest) Encode(w io.Writer) error {
 
 // ClunkResponse indicates a successful clunk.
 type ClunkResponse struct {
-	Tag Tag
-}
-
-// GetTag retrieves the current tag.
-func (cr *ClunkResponse) GetTag() Tag {
-	return cr.Tag
-}
-
-// SetTag assigns the current tag.
-func (cr *ClunkResponse) SetTag(t Tag) {
-	cr.Tag = t
+	Tag
 }
 
 // EncodedLength returns the length the message will be when serialized.
@@ -1481,20 +1275,10 @@ func (cr *ClunkResponse) Encode(w io.Writer) error {
 
 // RemoveRequest is used to clunk a fid and remove the file if possible.
 type RemoveRequest struct {
-	Tag Tag
+	Tag
 
 	// Fid is the fid to clunk and potentially remove.
 	Fid Fid
-}
-
-// GetTag retrieves the current tag.
-func (rr *RemoveRequest) GetTag() Tag {
-	return rr.Tag
-}
-
-// SetTag assigns the current tag.
-func (rr *RemoveRequest) SetTag(t Tag) {
-	rr.Tag = t
 }
 
 // EncodedLength returns the length the message will be when serialized.
@@ -1528,17 +1312,7 @@ func (rr *RemoveRequest) Encode(w io.Writer) error {
 
 // RemoveResponse indicates a successful clunk, but not necessarily a successful remove.
 type RemoveResponse struct {
-	Tag Tag
-}
-
-// GetTag retrieves the current tag.
-func (rr *RemoveResponse) GetTag() Tag {
-	return rr.Tag
-}
-
-// SetTag assigns the current tag.
-func (rr *RemoveResponse) SetTag(t Tag) {
-	rr.Tag = t
+	Tag
 }
 
 // EncodedLength returns the length the message will be when serialized.
@@ -1566,20 +1340,10 @@ func (rr *RemoveResponse) Encode(w io.Writer) error {
 
 // StatRequest is used to retrieve the Stat struct of a file
 type StatRequest struct {
-	Tag Tag
+	Tag
 
 	// Fid is the fid to retrieve Stat for.
 	Fid Fid
-}
-
-// GetTag retrieves the current tag.
-func (sr *StatRequest) GetTag() Tag {
-	return sr.Tag
-}
-
-// SetTag assigns the current tag.
-func (sr *StatRequest) SetTag(t Tag) {
-	sr.Tag = t
 }
 
 // EncodedLength returns the length the message will be when serialized.
@@ -1613,20 +1377,10 @@ func (sr *StatRequest) Encode(w io.Writer) error {
 
 // StatResponse contains the Stat struct of a file.
 type StatResponse struct {
-	Tag Tag
+	Tag
 
 	// Stat is the requested Stat struct.
 	Stat Stat
-}
-
-// GetTag retrieves the current tag.
-func (sr *StatResponse) GetTag() Tag {
-	return sr.Tag
-}
-
-// SetTag assigns the current tag.
-func (sr *StatResponse) SetTag(t Tag) {
-	sr.Tag = t
 }
 
 // EncodedLength returns the length the message will be when serialized.
@@ -1679,23 +1433,13 @@ func (sr *StatResponse) Encode(w io.Writer) error {
 // changes applied. The server must not perform a partial application of the
 // Stat structure.
 type WriteStatRequest struct {
-	Tag Tag
+	Tag
 
 	// Fid is the file to modify the Stat struct for.
 	Fid Fid
 
 	// Stat is the Stat struct to apply.
 	Stat Stat
-}
-
-// GetTag retrieves the current tag.
-func (wsr *WriteStatRequest) GetTag() Tag {
-	return wsr.Tag
-}
-
-// SetTag assigns the current tag.
-func (wsr *WriteStatRequest) SetTag(t Tag) {
-	wsr.Tag = t
 }
 
 // EncodedLength returns the length the message will be when serialized.
@@ -1744,17 +1488,7 @@ func (wsr *WriteStatRequest) Encode(w io.Writer) error {
 
 // WriteStatResponse indicates a successful application of a Stat structure.
 type WriteStatResponse struct {
-	Tag Tag
-}
-
-// GetTag retrieves the current tag.
-func (wsr *WriteStatResponse) GetTag() Tag {
-	return wsr.Tag
-}
-
-// SetTag assigns the current tag.
-func (wsr *WriteStatResponse) SetTag(t Tag) {
-	wsr.Tag = t
+	Tag
 }
 
 // EncodedLength returns the length the message will be when serialized.
