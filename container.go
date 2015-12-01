@@ -27,7 +27,7 @@ type Message interface {
 
 // Tagger is an interface describing an item capable of fetching a Tag.
 type Tagger interface {
-	Tag() Tag
+	GetTag() Tag
 }
 
 // DecodeHdr reads 5 bytes and returns the decoded size and message type. It

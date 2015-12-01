@@ -52,7 +52,7 @@ var NineP2000 Protocol = &Codec{
 // current requests.
 type Tag uint16
 
-func (t Tag) Tag() Tag {
+func (t Tag) GetTag() Tag {
 	return t
 }
 
