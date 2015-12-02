@@ -23,10 +23,6 @@ type Message interface {
 	EncodedLength() int
 	Encode(w io.Writer) error
 	Decode(r io.Reader) error
-}
-
-// Tagger is an interface describing an item capable of fetching a Tag.
-type Tagger interface {
 	GetTag() Tag
 }
 
