@@ -1,6 +1,6 @@
 package qp
 
-import "io"
+import "encoding/binary"
 
 // NineP2000 implements 9P2000 encoding and decoding.
 //
@@ -92,34 +92,27 @@ func (*Qid) EncodedLength() int {
 	return 13
 }
 
-// Decode decodes a stream into the message.
-func (q *Qid) Decode(r io.Reader) error {
+func (q *Qid) UnmarshalBinary(b []byte) error {
 	var err error
-	if q.Type, err = readQidType(r); err != nil {
+	idx := 0
+	if q.Type, idx, err = nreadQidType(b, idx); err != nil {
 		return err
 	}
-	if q.Version, err = readUint32(r); err != nil {
+	if q.Version, idx, err = nreadUint32(b, idx); err != nil {
 		return err
 	}
-	if q.Path, err = readUint64(r); err != nil {
+	if q.Path, idx, err = nreadUint64(b, idx); err != nil {
 		return err
 	}
 	return nil
 }
 
-// Encode encodes the message into a stream.
-func (q *Qid) Encode(w io.Writer) error {
-	var err error
-	if err = writeQidType(w, q.Type); err != nil {
-		return err
-	}
-	if err = writeUint32(w, q.Version); err != nil {
-		return err
-	}
-	if err = writeUint64(w, q.Path); err != nil {
-		return err
-	}
-	return nil
+func (q *Qid) MarshalBinary() ([]byte, error) {
+	var b []byte
+	b = nwriteQidType(b, q.Type)
+	b = nwriteUint32(b, q.Version)
+	b = nwriteUint64(b, q.Path)
+	return b, nil
 }
 
 // Stat is a directory entry, providing detailed information of a file. It is
@@ -164,95 +157,68 @@ func (s *Stat) EncodedLength() int {
 	return 2 + 2 + 4 + 13 + 4 + 4 + 4 + 8 + 8 + len(s.Name) + len(s.UID) + len(s.GID) + len(s.MUID)
 }
 
-// Decode decodes a stream into the message.
-func (s *Stat) Decode(r io.Reader) error {
+func (s *Stat) UnmarshalBinary(b []byte) error {
 	var err error
-
-	// We have no use of this length
-	if _, err = readUint16(r); err != nil {
+	idx := 0
+	if _, idx, err = nreadUint16(b, idx); err != nil {
 		return err
 	}
-
-	if s.Type, err = readUint16(r); err != nil {
+	if s.Type, idx, err = nreadUint16(b, idx); err != nil {
 		return err
 	}
-	if s.Dev, err = readUint32(r); err != nil {
+	if s.Dev, idx, err = nreadUint32(b, idx); err != nil {
 		return err
 	}
-	if err = s.Qid.Decode(r); err != nil {
+	if err = s.Qid.UnmarshalBinary(b[idx : idx+13]); err != nil {
 		return err
 	}
-	if s.Mode, err = readFileMode(r); err != nil {
+	idx += 13
+	if s.Mode, idx, err = nreadFileMode(b, idx); err != nil {
 		return err
 	}
-	if s.Atime, err = readUint32(r); err != nil {
+	if s.Atime, idx, err = nreadUint32(b, idx); err != nil {
 		return err
 	}
-	if s.Mtime, err = readUint32(r); err != nil {
+	if s.Mtime, idx, err = nreadUint32(b, idx); err != nil {
 		return err
 	}
-	if s.Length, err = readUint64(r); err != nil {
+	if s.Length, idx, err = nreadUint64(b, idx); err != nil {
 		return err
 	}
-	if s.Name, err = readString(r); err != nil {
+	if s.Name, idx, err = nreadString(b, idx); err != nil {
 		return err
 	}
-	if s.UID, err = readString(r); err != nil {
+	if s.UID, idx, err = nreadString(b, idx); err != nil {
 		return err
 	}
-	if s.GID, err = readString(r); err != nil {
+	if s.GID, idx, err = nreadString(b, idx); err != nil {
 		return err
 	}
-	if s.MUID, err = readString(r); err != nil {
+	if s.MUID, idx, err = nreadString(b, idx); err != nil {
 		return err
 	}
 	return nil
 }
 
-// Encode encodes the message into a stream.
-func (s *Stat) Encode(w io.Writer) error {
-	var err error
-
-	l := uint16(s.EncodedLength() - 2)
-
-	if err = writeUint16(w, l); err != nil {
-		return err
+func (s *Stat) MarshalBinary() ([]byte, error) {
+	b := make([]byte, 2)
+	b = nwriteUint16(b, s.Type)
+	b = nwriteUint32(b, s.Dev)
+	x, err := s.Qid.MarshalBinary()
+	if err != nil {
+		return nil, err
 	}
-	if err = writeUint16(w, s.Type); err != nil {
-		return err
-	}
-	if err = writeUint32(w, s.Dev); err != nil {
-		return err
-	}
-	if err = s.Qid.Encode(w); err != nil {
-		return err
-	}
-	if err = writeFileMode(w, s.Mode); err != nil {
-		return err
-	}
-	if err = writeUint32(w, s.Atime); err != nil {
-		return err
-	}
-	if err = writeUint32(w, s.Mtime); err != nil {
-		return err
-	}
-	if err = writeUint64(w, s.Length); err != nil {
-		return err
-	}
-	if err = writeString(w, s.Name); err != nil {
-		return err
-	}
-	if err = writeString(w, s.UID); err != nil {
-		return err
-	}
-	if err = writeString(w, s.GID); err != nil {
-		return err
-	}
-	if err = writeString(w, s.MUID); err != nil {
-		return err
-	}
-
-	return nil
+	b = append(b, x...)
+	b = nwriteFileMode(b, s.Mode)
+	b = nwriteUint32(b, s.Atime)
+	b = nwriteUint32(b, s.Mtime)
+	b = nwriteUint64(b, s.Length)
+	b = nwriteString(b, s.Name)
+	b = nwriteString(b, s.UID)
+	b = nwriteString(b, s.GID)
+	b = nwriteString(b, s.MUID)
+	binary.LittleEndian.PutUint16(b[0:2], uint16(len(b)-2))
+	return b, nil
 }
 
 //
@@ -279,34 +245,27 @@ func (vr *VersionRequest) EncodedLength() int {
 	return 2 + 4 + 2 + len(vr.Version)
 }
 
-// Decode decodes a stream into the message.
-func (vr *VersionRequest) Decode(r io.Reader) error {
+func (vr *VersionRequest) UnmarshalBinary(b []byte) error {
 	var err error
-	if vr.Tag, err = readTag(r); err != nil {
+	idx := 0
+	if vr.Tag, idx, err = nreadTag(b, idx); err != nil {
 		return err
 	}
-	if vr.MaxSize, err = readUint32(r); err != nil {
+	if vr.MaxSize, idx, err = nreadUint32(b, idx); err != nil {
 		return err
 	}
-	if vr.Version, err = readString(r); err != nil {
+	if vr.Version, idx, err = nreadString(b, idx); err != nil {
 		return err
 	}
 	return nil
 }
 
-// Encode encodes the message into a stream.
-func (vr *VersionRequest) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, vr.Tag); err != nil {
-		return err
-	}
-	if err = writeUint32(w, vr.MaxSize); err != nil {
-		return err
-	}
-	if err = writeString(w, vr.Version); err != nil {
-		return err
-	}
-	return nil
+func (vr *VersionRequest) MarshalBinary() ([]byte, error) {
+	var b []byte
+	b = nwriteTag(b, vr.Tag)
+	b = nwriteUint32(b, vr.MaxSize)
+	b = nwriteString(b, vr.Version)
+	return b, nil
 }
 
 // VersionResponse is used to inform the client of maximum size and version,
@@ -331,34 +290,27 @@ func (vr *VersionResponse) EncodedLength() int {
 	return 2 + 4 + 2 + len(vr.Version)
 }
 
-// Decode decodes a stream into the message.
-func (vr *VersionResponse) Decode(r io.Reader) error {
+func (vr *VersionResponse) UnmarshalBinary(b []byte) error {
 	var err error
-	if vr.Tag, err = readTag(r); err != nil {
+	idx := 0
+	if vr.Tag, idx, err = nreadTag(b, idx); err != nil {
 		return err
 	}
-	if vr.MaxSize, err = readUint32(r); err != nil {
+	if vr.MaxSize, idx, err = nreadUint32(b, idx); err != nil {
 		return err
 	}
-	if vr.Version, err = readString(r); err != nil {
+	if vr.Version, idx, err = nreadString(b, idx); err != nil {
 		return err
 	}
 	return nil
 }
 
-// Encode encodes the message into a stream.
-func (vr *VersionResponse) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, vr.Tag); err != nil {
-		return err
-	}
-	if err = writeUint32(w, vr.MaxSize); err != nil {
-		return err
-	}
-	if err = writeString(w, vr.Version); err != nil {
-		return err
-	}
-	return nil
+func (vr *VersionResponse) MarshalBinary() ([]byte, error) {
+	var b []byte
+	b = nwriteTag(b, vr.Tag)
+	b = nwriteUint32(b, vr.MaxSize)
+	b = nwriteString(b, vr.Version)
+	return b, nil
 }
 
 // AuthRequest is used to request and authentication protocol connection from
@@ -385,40 +337,31 @@ func (ar *AuthRequest) EncodedLength() int {
 	return 2 + 4 + 2 + len(ar.Username) + 2 + len(ar.Service)
 }
 
-// Decode decodes a stream into the message.
-func (ar *AuthRequest) Decode(r io.Reader) error {
+func (ar *AuthRequest) UnmarshalBinary(b []byte) error {
 	var err error
-	if ar.Tag, err = readTag(r); err != nil {
+	idx := 0
+	if ar.Tag, idx, err = nreadTag(b, idx); err != nil {
 		return err
 	}
-	if ar.AuthFid, err = readFid(r); err != nil {
+	if ar.AuthFid, idx, err = nreadFid(b, idx); err != nil {
 		return err
 	}
-	if ar.Username, err = readString(r); err != nil {
+	if ar.Username, idx, err = nreadString(b, idx); err != nil {
 		return err
 	}
-	if ar.Service, err = readString(r); err != nil {
+	if ar.Service, idx, err = nreadString(b, idx); err != nil {
 		return err
 	}
-	return nil
+	return err
 }
 
-// Encode encodes the message into a stream.
-func (ar *AuthRequest) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, ar.Tag); err != nil {
-		return err
-	}
-	if err = writeFid(w, ar.AuthFid); err != nil {
-		return err
-	}
-	if err = writeString(w, ar.Username); err != nil {
-		return err
-	}
-	if err = writeString(w, ar.Service); err != nil {
-		return err
-	}
-	return nil
+func (ar *AuthRequest) MarshalBinary() ([]byte, error) {
+	var b []byte
+	b = nwriteTag(b, ar.Tag)
+	b = nwriteFid(b, ar.AuthFid)
+	b = nwriteString(b, ar.Username)
+	b = nwriteString(b, ar.Service)
+	return b, nil
 }
 
 // AuthResponse is used to acknowledge the authentication protocol connection,
@@ -436,28 +379,27 @@ func (*AuthResponse) EncodedLength() int {
 	return 2 + 13
 }
 
-// Decode decodes a stream into the message.
-func (ar *AuthResponse) Decode(r io.Reader) error {
+func (ar *AuthResponse) UnmarshalBinary(b []byte) error {
 	var err error
-	if ar.Tag, err = readTag(r); err != nil {
+	idx := 0
+	if ar.Tag, idx, err = nreadTag(b, idx); err != nil {
 		return err
 	}
-	if err = ar.AuthQid.Decode(r); err != nil {
+	if err = ar.AuthQid.UnmarshalBinary(b[idx : idx+13]); err != nil {
 		return err
 	}
 	return nil
 }
 
-// Encode encodes the message into a stream.
-func (ar *AuthResponse) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, ar.Tag); err != nil {
-		return err
+func (ar *AuthResponse) MarshalBinary() ([]byte, error) {
+	var b []byte
+	b = nwriteTag(b, ar.Tag)
+	x, err := ar.AuthQid.MarshalBinary()
+	if err != nil {
+		return nil, err
 	}
-	if err = ar.AuthQid.Encode(w); err != nil {
-		return err
-	}
-	return nil
+	b = append(b, x...)
+	return b, nil
 }
 
 // AttachRequest is used to establish a connection to a service as a user, and
@@ -487,46 +429,35 @@ func (ar *AttachRequest) EncodedLength() int {
 	return 2 + 4 + 4 + 2 + len(ar.Username) + 2 + len(ar.Service)
 }
 
-// Decode decodes a stream into the message.
-func (ar *AttachRequest) Decode(r io.Reader) error {
+func (ar *AttachRequest) UnmarshalBinary(b []byte) error {
 	var err error
-	if ar.Tag, err = readTag(r); err != nil {
+	idx := 0
+	if ar.Tag, idx, err = nreadTag(b, idx); err != nil {
 		return err
 	}
-	if ar.Fid, err = readFid(r); err != nil {
+	if ar.Fid, idx, err = nreadFid(b, idx); err != nil {
 		return err
 	}
-	if ar.AuthFid, err = readFid(r); err != nil {
+	if ar.AuthFid, idx, err = nreadFid(b, idx); err != nil {
 		return err
 	}
-	if ar.Username, err = readString(r); err != nil {
+	if ar.Username, idx, err = nreadString(b, idx); err != nil {
 		return err
 	}
-	if ar.Service, err = readString(r); err != nil {
+	if ar.Service, idx, err = nreadString(b, idx); err != nil {
 		return err
 	}
-	return nil
+	return err
 }
 
-// Encode encodes the message into a stream.
-func (ar *AttachRequest) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, ar.Tag); err != nil {
-		return err
-	}
-	if err = writeFid(w, ar.Fid); err != nil {
-		return err
-	}
-	if err = writeFid(w, ar.AuthFid); err != nil {
-		return err
-	}
-	if err = writeString(w, ar.Username); err != nil {
-		return err
-	}
-	if err = writeString(w, ar.Service); err != nil {
-		return err
-	}
-	return nil
+func (ar *AttachRequest) MarshalBinary() ([]byte, error) {
+	var b []byte
+	b = nwriteTag(b, ar.Tag)
+	b = nwriteFid(b, ar.Fid)
+	b = nwriteFid(b, ar.AuthFid)
+	b = nwriteString(b, ar.Username)
+	b = nwriteString(b, ar.Service)
+	return b, nil
 }
 
 // AttachResponse acknowledges an attach.
@@ -542,28 +473,27 @@ func (*AttachResponse) EncodedLength() int {
 	return 2 + 13
 }
 
-// Decode decodes a stream into the message.
-func (ar *AttachResponse) Decode(r io.Reader) error {
+func (ar *AttachResponse) UnmarshalBinary(b []byte) error {
 	var err error
-	if ar.Tag, err = readTag(r); err != nil {
+	idx := 0
+	if ar.Tag, idx, err = nreadTag(b, idx); err != nil {
 		return err
 	}
-	if err = ar.Qid.Decode(r); err != nil {
+	if err = ar.Qid.UnmarshalBinary(b[idx : idx+13]); err != nil {
 		return err
 	}
 	return nil
 }
 
-// Encode encodes the message into a stream.
-func (ar *AttachResponse) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, ar.Tag); err != nil {
-		return err
+func (ar *AttachResponse) MarshalBinary() ([]byte, error) {
+	var b []byte
+	b = nwriteTag(b, ar.Tag)
+	x, err := ar.Qid.MarshalBinary()
+	if err != nil {
+		return nil, err
 	}
-	if err = ar.Qid.Encode(w); err != nil {
-		return err
-	}
-	return nil
+	b = append(b, x...)
+	return b, nil
 }
 
 // ErrorResponse is used when the server wants to report and error with the
@@ -581,28 +511,23 @@ func (er *ErrorResponse) EncodedLength() int {
 	return 2 + 2 + len(er.Error)
 }
 
-// Decode decodes a stream into the message.
-func (er *ErrorResponse) Decode(r io.Reader) error {
+func (er *ErrorResponse) UnmarshalBinary(b []byte) error {
 	var err error
-	if er.Tag, err = readTag(r); err != nil {
+	idx := 0
+	if er.Tag, idx, err = nreadTag(b, idx); err != nil {
 		return err
 	}
-	if er.Error, err = readString(r); err != nil {
+	if er.Error, idx, err = nreadString(b, idx); err != nil {
 		return err
 	}
 	return nil
 }
 
-// Encode encodes the message into a stream.
-func (er *ErrorResponse) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, er.Tag); err != nil {
-		return err
-	}
-	if err = writeString(w, er.Error); err != nil {
-		return err
-	}
-	return nil
+func (er *ErrorResponse) MarshalBinary() ([]byte, error) {
+	var b []byte
+	b = nwriteTag(b, er.Tag)
+	b = nwriteString(b, er.Error)
+	return b, nil
 }
 
 // FlushRequest is used to cancel a pending request. The flushed tag can be
@@ -619,28 +544,23 @@ func (*FlushRequest) EncodedLength() int {
 	return 2 + 2
 }
 
-// Decode decodes a stream into the message.
-func (fr *FlushRequest) Decode(r io.Reader) error {
+func (fr *FlushRequest) UnmarshalBinary(b []byte) error {
 	var err error
-	if fr.Tag, err = readTag(r); err != nil {
+	idx := 0
+	if fr.Tag, idx, err = nreadTag(b, idx); err != nil {
 		return err
 	}
-	if fr.OldTag, err = readTag(r); err != nil {
+	if fr.OldTag, idx, err = nreadTag(b, idx); err != nil {
 		return err
 	}
 	return nil
 }
 
-// Encode encodes the message into a stream.
-func (fr *FlushRequest) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, fr.Tag); err != nil {
-		return err
-	}
-	if err = writeTag(w, fr.OldTag); err != nil {
-		return err
-	}
-	return nil
+func (fr *FlushRequest) MarshalBinary() ([]byte, error) {
+	var b []byte
+	b = nwriteTag(b, fr.Tag)
+	b = nwriteTag(b, fr.OldTag)
+	return b, nil
 }
 
 // FlushResponse is used to indicate a successful flush. Do note that
@@ -654,22 +574,19 @@ func (*FlushResponse) EncodedLength() int {
 	return 2
 }
 
-// Decode decodes a stream into the message.
-func (fr *FlushResponse) Decode(r io.Reader) error {
+func (fr *FlushResponse) UnmarshalBinary(b []byte) error {
 	var err error
-	if fr.Tag, err = readTag(r); err != nil {
+	idx := 0
+	if fr.Tag, idx, err = nreadTag(b, idx); err != nil {
 		return err
 	}
 	return nil
 }
 
-// Encode encodes the message into a stream.
-func (fr *FlushResponse) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, fr.Tag); err != nil {
-		return err
-	}
-	return nil
+func (fr *FlushResponse) MarshalBinary() ([]byte, error) {
+	var b []byte
+	b = nwriteTag(b, fr.Tag)
+	return b, nil
 }
 
 // WalkRequest is used to walk into directories, starting from the current fid.
@@ -697,52 +614,41 @@ func (wr *WalkRequest) EncodedLength() int {
 	return 2 + 4 + 4 + 2 + x
 }
 
-// Decode decodes a stream into the message.
-func (wr *WalkRequest) Decode(r io.Reader) error {
+func (wr *WalkRequest) UnmarshalBinary(b []byte) error {
 	var err error
-	if wr.Tag, err = readTag(r); err != nil {
+	idx := 0
+	if wr.Tag, idx, err = nreadTag(b, idx); err != nil {
 		return err
 	}
-	if wr.Fid, err = readFid(r); err != nil {
+	if wr.Fid, idx, err = nreadFid(b, idx); err != nil {
 		return err
 	}
-	if wr.NewFid, err = readFid(r); err != nil {
+	if wr.NewFid, idx, err = nreadFid(b, idx); err != nil {
 		return err
 	}
-	var arr uint16
-	if arr, err = readUint16(r); err != nil {
+	var l uint16
+	if l, idx, err = nreadUint16(b, idx); err != nil {
 		return err
 	}
-	wr.Names = make([]string, arr)
-	for i := 0; i < int(arr); i++ {
-		if wr.Names[i], err = readString(r); err != nil {
+	wr.Names = make([]string, l)
+	for i := range wr.Names {
+		if wr.Names[i], idx, err = nreadString(b, idx); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// Encode encodes the message into a stream.
-func (wr *WalkRequest) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, wr.Tag); err != nil {
-		return err
-	}
-	if err = writeFid(w, wr.Fid); err != nil {
-		return err
-	}
-	if err = writeFid(w, wr.NewFid); err != nil {
-		return err
-	}
-	if err = writeUint16(w, uint16(len(wr.Names))); err != nil {
-		return err
-	}
+func (wr *WalkRequest) MarshalBinary() ([]byte, error) {
+	var b []byte
+	b = nwriteTag(b, wr.Tag)
+	b = nwriteFid(b, wr.Fid)
+	b = nwriteFid(b, wr.NewFid)
+	b = nwriteUint16(b, uint16(len(wr.Names)))
 	for i := range wr.Names {
-		if err = writeString(w, wr.Names[i]); err != nil {
-			return err
-		}
+		b = nwriteString(b, wr.Names[i])
 	}
-	return nil
+	return b, nil
 }
 
 // WalkResponse returns the qids for each successfully walked element. If the
@@ -760,40 +666,38 @@ func (wr *WalkResponse) EncodedLength() int {
 	return 2 + 2 + 13*len(wr.Qids)
 }
 
-// Decode decodes a stream into the message.
-func (wr *WalkResponse) Decode(r io.Reader) error {
+func (wr *WalkResponse) UnmarshalBinary(b []byte) error {
 	var err error
-	if wr.Tag, err = readTag(r); err != nil {
+	idx := 0
+	if wr.Tag, idx, err = nreadTag(b, idx); err != nil {
 		return err
 	}
-	var arr uint16
-	if arr, err = readUint16(r); err != nil {
+	var l uint16
+	if l, idx, err = nreadUint16(b, idx); err != nil {
 		return err
 	}
-	wr.Qids = make([]Qid, arr)
-	for i := 0; i < int(arr); i++ {
-		if err = wr.Qids[i].Decode(r); err != nil {
+	wr.Qids = make([]Qid, l)
+	for i := range wr.Qids {
+		if err = wr.Qids[i].UnmarshalBinary(b[idx : idx+13]); err != nil {
 			return err
 		}
+		idx += 13
 	}
 	return nil
 }
 
-// Encode encodes the message into a stream.
-func (wr *WalkResponse) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, wr.Tag); err != nil {
-		return err
-	}
-	if err = writeUint16(w, uint16(len(wr.Qids))); err != nil {
-		return err
-	}
+func (wr *WalkResponse) MarshalBinary() ([]byte, error) {
+	var b []byte
+	b = nwriteTag(b, wr.Tag)
+	b = nwriteUint16(b, uint16(len(wr.Qids)))
 	for i := range wr.Qids {
-		if err = wr.Qids[i].Encode(w); err != nil {
-			return err
+		x, err := wr.Qids[i].MarshalBinary()
+		if err != nil {
+			return nil, err
 		}
+		b = append(b, x...)
 	}
-	return nil
+	return b, nil
 }
 
 // OpenRequest is used to open a fid for reading/writing/executing.
@@ -812,34 +716,27 @@ func (*OpenRequest) EncodedLength() int {
 	return 2 + 4 + 1
 }
 
-// Decode decodes a stream into the message.
-func (or *OpenRequest) Decode(r io.Reader) error {
+func (or *OpenRequest) UnmarshalBinary(b []byte) error {
 	var err error
-	if or.Tag, err = readTag(r); err != nil {
+	idx := 0
+	if or.Tag, idx, err = nreadTag(b, idx); err != nil {
 		return err
 	}
-	if or.Fid, err = readFid(r); err != nil {
+	if or.Fid, idx, err = nreadFid(b, idx); err != nil {
 		return err
 	}
-	if or.Mode, err = readOpenMode(r); err != nil {
+	if or.Mode, idx, err = nreadOpenMode(b, idx); err != nil {
 		return err
 	}
 	return nil
 }
 
-// Encode encodes the message into a stream.
-func (or *OpenRequest) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, or.Tag); err != nil {
-		return err
-	}
-	if err = writeFid(w, or.Fid); err != nil {
-		return err
-	}
-	if err = writeOpenMode(w, or.Mode); err != nil {
-		return err
-	}
-	return nil
+func (or *OpenRequest) MarshalBinary() ([]byte, error) {
+	var b []byte
+	b = nwriteTag(b, or.Tag)
+	b = nwriteFid(b, or.Fid)
+	b = nwriteOpenMode(b, or.Mode)
+	return b, nil
 }
 
 // OpenResponse returns the qid of the file, as well as iounit, which is a
@@ -861,34 +758,32 @@ func (*OpenResponse) EncodedLength() int {
 	return 2 + 13 + 4
 }
 
-// Decode decodes a stream into the message.
-func (or *OpenResponse) Decode(r io.Reader) error {
+func (or *OpenResponse) UnmarshalBinary(b []byte) error {
 	var err error
-	if or.Tag, err = readTag(r); err != nil {
+	idx := 0
+	if or.Tag, idx, err = nreadTag(b, idx); err != nil {
 		return err
 	}
-	if err = or.Qid.Decode(r); err != nil {
+	if err = or.Qid.UnmarshalBinary(b[idx : idx+13]); err != nil {
 		return err
 	}
-	if or.IOUnit, err = readUint32(r); err != nil {
+	idx += 13
+	if or.IOUnit, idx, err = nreadUint32(b, idx); err != nil {
 		return err
 	}
 	return nil
 }
 
-// Encode encodes the message into a stream.
-func (or *OpenResponse) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, or.Tag); err != nil {
-		return err
+func (or *OpenResponse) MarshalBinary() ([]byte, error) {
+	var b []byte
+	b = nwriteTag(b, or.Tag)
+	x, err := or.Qid.MarshalBinary()
+	if err != nil {
+		return nil, err
 	}
-	if err = or.Qid.Encode(w); err != nil {
-		return err
-	}
-	if err = writeUint32(w, or.IOUnit); err != nil {
-		return err
-	}
-	return nil
+	b = append(b, x...)
+	b = nwriteUint32(b, or.IOUnit)
+	return b, nil
 }
 
 // CreateRequest tries to create a file in the current directory with the
@@ -917,46 +812,35 @@ func (cr *CreateRequest) EncodedLength() int {
 	return 2 + 4 + 2 + len(cr.Name) + 4 + 1
 }
 
-// Decode decodes a stream into the message.
-func (cr *CreateRequest) Decode(r io.Reader) error {
+func (cr *CreateRequest) UnmarshalBinary(b []byte) error {
 	var err error
-	if cr.Tag, err = readTag(r); err != nil {
+	idx := 0
+	if cr.Tag, idx, err = nreadTag(b, idx); err != nil {
 		return err
 	}
-	if cr.Fid, err = readFid(r); err != nil {
+	if cr.Fid, idx, err = nreadFid(b, idx); err != nil {
 		return err
 	}
-	if cr.Name, err = readString(r); err != nil {
+	if cr.Name, idx, err = nreadString(b, idx); err != nil {
 		return err
 	}
-	if cr.Permissions, err = readFileMode(r); err != nil {
+	if cr.Permissions, idx, err = nreadFileMode(b, idx); err != nil {
 		return err
 	}
-	if cr.Mode, err = readOpenMode(r); err != nil {
+	if cr.Mode, idx, err = nreadOpenMode(b, idx); err != nil {
 		return err
 	}
 	return nil
 }
 
-// Encode encodes the message into a stream.
-func (cr *CreateRequest) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, cr.Tag); err != nil {
-		return err
-	}
-	if err = writeFid(w, cr.Fid); err != nil {
-		return err
-	}
-	if err = writeString(w, cr.Name); err != nil {
-		return err
-	}
-	if err = writeFileMode(w, cr.Permissions); err != nil {
-		return err
-	}
-	if err = writeOpenMode(w, cr.Mode); err != nil {
-		return err
-	}
-	return nil
+func (cr *CreateRequest) MarshalBinary() ([]byte, error) {
+	var b []byte
+	b = nwriteTag(b, cr.Tag)
+	b = nwriteFid(b, cr.Fid)
+	b = nwriteString(b, cr.Name)
+	b = nwriteFileMode(b, cr.Permissions)
+	b = nwriteOpenMode(b, cr.Mode)
+	return b, nil
 }
 
 // CreateResponse returns the qid of the file, as well as iounit, which is a
@@ -978,34 +862,32 @@ func (*CreateResponse) EncodedLength() int {
 	return 2 + 13 + 4
 }
 
-// Decode decodes a stream into the message.
-func (cr *CreateResponse) Decode(r io.Reader) error {
+func (cr *CreateResponse) UnmarshalBinary(b []byte) error {
 	var err error
-	if cr.Tag, err = readTag(r); err != nil {
+	idx := 0
+	if cr.Tag, idx, err = nreadTag(b, idx); err != nil {
 		return err
 	}
-	if err = cr.Qid.Decode(r); err != nil {
+	if err = cr.Qid.UnmarshalBinary(b[idx : idx+13]); err != nil {
 		return err
 	}
-	if cr.IOUnit, err = readUint32(r); err != nil {
+	idx += 13
+	if cr.IOUnit, idx, err = nreadUint32(b, idx); err != nil {
 		return err
 	}
 	return nil
 }
 
-// Encode encodes the message into a stream.
-func (cr *CreateResponse) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, cr.Tag); err != nil {
-		return err
+func (cr *CreateResponse) MarshalBinary() ([]byte, error) {
+	var b []byte
+	b = nwriteTag(b, cr.Tag)
+	x, err := cr.Qid.MarshalBinary()
+	if err != nil {
+		return nil, err
 	}
-	if err = cr.Qid.Encode(w); err != nil {
-		return err
-	}
-	if err = writeUint32(w, cr.IOUnit); err != nil {
-		return err
-	}
-	return nil
+	b = append(b, x...)
+	b = nwriteUint32(b, cr.IOUnit)
+	return b, nil
 }
 
 // ReadRequest is used to read data from an open file.
@@ -1027,40 +909,31 @@ func (*ReadRequest) EncodedLength() int {
 	return 2 + 4 + 8 + 4
 }
 
-// Decode decodes a stream into the message.
-func (rr *ReadRequest) Decode(r io.Reader) error {
+func (rr *ReadRequest) UnmarshalBinary(b []byte) error {
 	var err error
-	if rr.Tag, err = readTag(r); err != nil {
+	idx := 0
+	if rr.Tag, idx, err = nreadTag(b, idx); err != nil {
 		return err
 	}
-	if rr.Fid, err = readFid(r); err != nil {
+	if rr.Fid, idx, err = nreadFid(b, idx); err != nil {
 		return err
 	}
-	if rr.Offset, err = readUint64(r); err != nil {
+	if rr.Offset, idx, err = nreadUint64(b, idx); err != nil {
 		return err
 	}
-	if rr.Count, err = readUint32(r); err != nil {
+	if rr.Count, idx, err = nreadUint32(b, idx); err != nil {
 		return err
 	}
 	return nil
 }
 
-// Encode encodes the message into a stream.
-func (rr *ReadRequest) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, rr.Tag); err != nil {
-		return err
-	}
-	if err = writeFid(w, rr.Fid); err != nil {
-		return err
-	}
-	if err = writeUint64(w, rr.Offset); err != nil {
-		return err
-	}
-	if err = writeUint32(w, rr.Count); err != nil {
-		return err
-	}
-	return nil
+func (rr *ReadRequest) MarshalBinary() ([]byte, error) {
+	var b []byte
+	b = nwriteTag(b, rr.Tag)
+	b = nwriteFid(b, rr.Fid)
+	b = nwriteUint64(b, rr.Offset)
+	b = nwriteUint32(b, rr.Count)
+	return b, nil
 }
 
 // ReadResponse  is used to return the read data.
@@ -1076,36 +949,30 @@ func (rr *ReadResponse) EncodedLength() int {
 	return 2 + 4 + len(rr.Data)
 }
 
-// Decode decodes a stream into the message.
-func (rr *ReadResponse) Decode(r io.Reader) error {
+func (rr *ReadResponse) UnmarshalBinary(b []byte) error {
 	var err error
-	if rr.Tag, err = readTag(r); err != nil {
+	idx := 0
+	if rr.Tag, idx, err = nreadTag(b, idx); err != nil {
 		return err
 	}
 	var l uint32
-	if l, err = readUint32(r); err != nil {
+	if l, idx, err = nreadUint32(b, idx); err != nil {
 		return err
+	}
+	if len(b) < int(l)+idx {
+		return ErrPayloadTooShort
 	}
 	rr.Data = make([]byte, l)
-	if err = read(r, rr.Data); err != nil {
-		return err
-	}
+	copy(rr.Data, b[idx:idx+int(l)])
 	return nil
 }
 
-// Encode encodes the message into a stream.
-func (rr *ReadResponse) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, rr.Tag); err != nil {
-		return err
-	}
-	if err = writeUint32(w, uint32(len(rr.Data))); err != nil {
-		return err
-	}
-	if err = write(w, rr.Data); err != nil {
-		return err
-	}
-	return nil
+func (rr *ReadResponse) MarshalBinary() ([]byte, error) {
+	var b []byte
+	b = nwriteTag(b, rr.Tag)
+	b = nwriteUint32(b, uint32(len(rr.Data)))
+	b = append(b, rr.Data...)
+	return b, nil
 }
 
 // WriteRequest is used to write to an open file.
@@ -1127,48 +994,38 @@ func (wr *WriteRequest) EncodedLength() int {
 	return 2 + 4 + 8 + 4 + len(wr.Data)
 }
 
-// Decode decodes a stream into the message.
-func (wr *WriteRequest) Decode(r io.Reader) error {
+func (wr *WriteRequest) UnmarshalBinary(b []byte) error {
 	var err error
-	if wr.Tag, err = readTag(r); err != nil {
+	idx := 0
+	if wr.Tag, idx, err = nreadTag(b, idx); err != nil {
 		return err
 	}
-	if wr.Fid, err = readFid(r); err != nil {
+	if wr.Fid, idx, err = nreadFid(b, idx); err != nil {
 		return err
 	}
-	if wr.Offset, err = readUint64(r); err != nil {
+	if wr.Offset, idx, err = nreadUint64(b, idx); err != nil {
 		return err
 	}
-	var count uint32
-	if count, err = readUint32(r); err != nil {
+	var l uint32
+	if l, idx, err = nreadUint32(b, idx); err != nil {
 		return err
 	}
-	wr.Data = make([]byte, count)
-	if err = read(r, wr.Data); err != nil {
-		return err
+	if len(b) < int(l)+idx {
+		return ErrPayloadTooShort
 	}
+	wr.Data = make([]byte, l)
+	copy(wr.Data, b[idx:idx+int(l)])
 	return nil
 }
 
-// Encode encodes the message into a stream.
-func (wr *WriteRequest) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, wr.Tag); err != nil {
-		return err
-	}
-	if err = writeFid(w, wr.Fid); err != nil {
-		return err
-	}
-	if err = writeUint64(w, wr.Offset); err != nil {
-		return err
-	}
-	if err = writeUint32(w, uint32(len(wr.Data))); err != nil {
-		return err
-	}
-	if err = write(w, wr.Data); err != nil {
-		return err
-	}
-	return nil
+func (wr *WriteRequest) MarshalBinary() ([]byte, error) {
+	var b []byte
+	b = nwriteTag(b, wr.Tag)
+	b = nwriteFid(b, wr.Fid)
+	b = nwriteUint64(b, wr.Offset)
+	b = nwriteUint32(b, uint32(len(wr.Data)))
+	b = append(b, wr.Data...)
+	return b, nil
 }
 
 // WriteResponse is used to inform of how much data was written.
@@ -1184,28 +1041,23 @@ func (*WriteResponse) EncodedLength() int {
 	return 2 + 4
 }
 
-// Decode decodes a stream into the message.
-func (wr *WriteResponse) Decode(r io.Reader) error {
+func (wr *WriteResponse) UnmarshalBinary(b []byte) error {
 	var err error
-	if wr.Tag, err = readTag(r); err != nil {
+	idx := 0
+	if wr.Tag, idx, err = nreadTag(b, idx); err != nil {
 		return err
 	}
-	if wr.Count, err = readUint32(r); err != nil {
+	if wr.Count, idx, err = nreadUint32(b, idx); err != nil {
 		return err
 	}
 	return nil
 }
 
-// Encode encodes the message into a stream.
-func (wr *WriteResponse) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, wr.Tag); err != nil {
-		return err
-	}
-	if err = writeUint32(w, wr.Count); err != nil {
-		return err
-	}
-	return nil
+func (wr *WriteResponse) MarshalBinary() ([]byte, error) {
+	var b []byte
+	b = nwriteTag(b, wr.Tag)
+	b = nwriteUint32(b, wr.Count)
+	return b, nil
 }
 
 // ClunkRequest is used to clear a fid, allowing it to be reused.
@@ -1221,28 +1073,23 @@ func (*ClunkRequest) EncodedLength() int {
 	return 2 + 4
 }
 
-// Decode decodes a stream into the message.
-func (cr *ClunkRequest) Decode(r io.Reader) error {
+func (cr *ClunkRequest) UnmarshalBinary(b []byte) error {
 	var err error
-	if cr.Tag, err = readTag(r); err != nil {
+	idx := 0
+	if cr.Tag, idx, err = nreadTag(b, idx); err != nil {
 		return err
 	}
-	if cr.Fid, err = readFid(r); err != nil {
+	if cr.Fid, idx, err = nreadFid(b, idx); err != nil {
 		return err
 	}
 	return nil
 }
 
-// Encode encodes the message into a stream.
-func (cr *ClunkRequest) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, cr.Tag); err != nil {
-		return err
-	}
-	if err = writeFid(w, cr.Fid); err != nil {
-		return err
-	}
-	return nil
+func (cr *ClunkRequest) MarshalBinary() ([]byte, error) {
+	var b []byte
+	b = nwriteTag(b, cr.Tag)
+	b = nwriteFid(b, cr.Fid)
+	return b, nil
 }
 
 // ClunkResponse indicates a successful clunk.
@@ -1255,22 +1102,19 @@ func (*ClunkResponse) EncodedLength() int {
 	return 2
 }
 
-// Decode decodes a stream into the message.
-func (cr *ClunkResponse) Decode(r io.Reader) error {
+func (cr *ClunkResponse) UnmarshalBinary(b []byte) error {
 	var err error
-	if cr.Tag, err = readTag(r); err != nil {
+	idx := 0
+	if cr.Tag, idx, err = nreadTag(b, idx); err != nil {
 		return err
 	}
 	return nil
 }
 
-// Encode encodes the message into a stream.
-func (cr *ClunkResponse) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, cr.Tag); err != nil {
-		return err
-	}
-	return nil
+func (cr *ClunkResponse) MarshalBinary() ([]byte, error) {
+	var b []byte
+	b = nwriteTag(b, cr.Tag)
+	return b, nil
 }
 
 // RemoveRequest is used to clunk a fid and remove the file if possible.
@@ -1286,28 +1130,23 @@ func (*RemoveRequest) EncodedLength() int {
 	return 2 + 4
 }
 
-// Decode decodes a stream into the message.
-func (rr *RemoveRequest) Decode(r io.Reader) error {
+func (rr *RemoveRequest) UnmarshalBinary(b []byte) error {
 	var err error
-	if rr.Tag, err = readTag(r); err != nil {
+	idx := 0
+	if rr.Tag, idx, err = nreadTag(b, idx); err != nil {
 		return err
 	}
-	if rr.Fid, err = readFid(r); err != nil {
+	if rr.Fid, idx, err = nreadFid(b, idx); err != nil {
 		return err
 	}
 	return nil
 }
 
-// Encode encodes the message into a stream.
-func (rr *RemoveRequest) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, rr.Tag); err != nil {
-		return err
-	}
-	if err = writeFid(w, rr.Fid); err != nil {
-		return err
-	}
-	return nil
+func (rr *RemoveRequest) MarshalBinary() ([]byte, error) {
+	var b []byte
+	b = nwriteTag(b, rr.Tag)
+	b = nwriteFid(b, rr.Fid)
+	return b, nil
 }
 
 // RemoveResponse indicates a successful clunk, but not necessarily a successful remove.
@@ -1320,22 +1159,19 @@ func (*RemoveResponse) EncodedLength() int {
 	return 2
 }
 
-// Decode decodes a stream into the message.
-func (rr *RemoveResponse) Decode(r io.Reader) error {
+func (rr *RemoveResponse) UnmarshalBinary(b []byte) error {
 	var err error
-	if rr.Tag, err = readTag(r); err != nil {
+	idx := 0
+	if rr.Tag, idx, err = nreadTag(b, idx); err != nil {
 		return err
 	}
 	return nil
 }
 
-// Encode encodes the message into a stream.
-func (rr *RemoveResponse) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, rr.Tag); err != nil {
-		return err
-	}
-	return nil
+func (rr *RemoveResponse) MarshalBinary() ([]byte, error) {
+	var b []byte
+	b = nwriteTag(b, rr.Tag)
+	return b, nil
 }
 
 // StatRequest is used to retrieve the Stat struct of a file
@@ -1351,28 +1187,23 @@ func (*StatRequest) EncodedLength() int {
 	return 2 + 4
 }
 
-// Decode decodes a stream into the message.
-func (sr *StatRequest) Decode(r io.Reader) error {
+func (sr *StatRequest) UnmarshalBinary(b []byte) error {
 	var err error
-	if sr.Tag, err = readTag(r); err != nil {
+	idx := 0
+	if sr.Tag, idx, err = nreadTag(b, idx); err != nil {
 		return err
 	}
-	if sr.Fid, err = readFid(r); err != nil {
+	if sr.Fid, idx, err = nreadFid(b, idx); err != nil {
 		return err
 	}
 	return nil
 }
 
-// Encode encodes the message into a stream.
-func (sr *StatRequest) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, sr.Tag); err != nil {
-		return err
-	}
-	if err = writeFid(w, sr.Fid); err != nil {
-		return err
-	}
-	return nil
+func (sr *StatRequest) MarshalBinary() ([]byte, error) {
+	var b []byte
+	b = nwriteTag(b, sr.Tag)
+	b = nwriteFid(b, sr.Fid)
+	return b, nil
 }
 
 // StatResponse contains the Stat struct of a file.
@@ -1388,40 +1219,32 @@ func (sr *StatResponse) EncodedLength() int {
 	return 2 + 2 + sr.Stat.EncodedLength()
 }
 
-// Decode decodes a stream into the message.
-func (sr *StatResponse) Decode(r io.Reader) error {
+func (sr *StatResponse) UnmarshalBinary(b []byte) error {
 	var err error
-	if sr.Tag, err = readTag(r); err != nil {
+	idx := 0
+	if sr.Tag, idx, err = nreadTag(b, idx); err != nil {
 		return err
 	}
-
-	// We don't need this
-	if _, err = readUint16(r); err != nil {
+	var l uint16
+	if l, idx, err = nreadUint16(b, idx); err != nil {
 		return err
 	}
-
-	if err = sr.Stat.Decode(r); err != nil {
+	if err = sr.Stat.UnmarshalBinary(b[idx : idx+int(l)]); err != nil {
 		return err
 	}
 	return nil
 }
 
-// Encode encodes the message into a stream.
-func (sr *StatResponse) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, sr.Tag); err != nil {
-		return err
+func (sr *StatResponse) MarshalBinary() ([]byte, error) {
+	var b []byte
+	b = nwriteTag(b, sr.Tag)
+	x, err := sr.Stat.MarshalBinary()
+	if err != nil {
+		return nil, err
 	}
-
-	if err = writeUint16(w, uint16(sr.Stat.EncodedLength())); err != nil {
-		return err
-	}
-
-	if err = sr.Stat.Encode(w); err != nil {
-		return err
-	}
-
-	return nil
+	b = nwriteUint16(b, uint16(len(x)))
+	b = append(b, x...)
+	return b, nil
 }
 
 // WriteStatRequest attempts to apply a Stat struct to a file. This requires a
@@ -1447,43 +1270,36 @@ func (wsr *WriteStatRequest) EncodedLength() int {
 	return 2 + 4 + 2 + wsr.Stat.EncodedLength()
 }
 
-// Decode decodes a stream into the message.
-func (wsr *WriteStatRequest) Decode(r io.Reader) error {
+func (wsr *WriteStatRequest) UnmarshalBinary(b []byte) error {
 	var err error
-	if wsr.Tag, err = readTag(r); err != nil {
+	idx := 0
+	if wsr.Tag, idx, err = nreadTag(b, idx); err != nil {
 		return err
 	}
-	if wsr.Fid, err = readFid(r); err != nil {
+	if wsr.Fid, idx, err = nreadFid(b, idx); err != nil {
 		return err
 	}
-
-	// We don't need the stat size
-	if _, err = readUint16(r); err != nil {
+	var l uint16
+	if l, idx, err = nreadUint16(b, idx); err != nil {
 		return err
 	}
-
-	if err = wsr.Stat.Decode(r); err != nil {
+	if err = wsr.Stat.UnmarshalBinary(b[idx : idx+int(l)]); err != nil {
 		return err
 	}
 	return nil
 }
 
-// Encode encodes the message into a stream.
-func (wsr *WriteStatRequest) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, wsr.Tag); err != nil {
-		return err
+func (wsr *WriteStatRequest) MarshalBinary() ([]byte, error) {
+	var b []byte
+	b = nwriteTag(b, wsr.Tag)
+	b = nwriteFid(b, wsr.Fid)
+	x, err := wsr.Stat.MarshalBinary()
+	if err != nil {
+		return nil, err
 	}
-	if err = writeFid(w, wsr.Fid); err != nil {
-		return err
-	}
-	if err = writeUint16(w, uint16(wsr.Stat.EncodedLength())); err != nil {
-		return err
-	}
-	if err = wsr.Stat.Encode(w); err != nil {
-		return err
-	}
-	return nil
+	b = nwriteUint16(b, uint16(len(x)))
+	b = append(b, x...)
+	return b, nil
 }
 
 // WriteStatResponse indicates a successful application of a Stat structure.
@@ -1496,20 +1312,17 @@ func (*WriteStatResponse) EncodedLength() int {
 	return 2
 }
 
-// Decode decodes a stream into the message.
-func (wsr *WriteStatResponse) Decode(r io.Reader) error {
+func (wsr *WriteStatResponse) UnmarshalBinary(b []byte) error {
 	var err error
-	if wsr.Tag, err = readTag(r); err != nil {
+	idx := 0
+	if wsr.Tag, idx, err = nreadTag(b, idx); err != nil {
 		return err
 	}
 	return nil
 }
 
-// Encode encodes the message into a stream.
-func (wsr *WriteStatResponse) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, wsr.Tag); err != nil {
-		return err
-	}
-	return nil
+func (wsr *WriteStatResponse) MarshalBinary() ([]byte, error) {
+	var b []byte
+	b = nwriteTag(b, wsr.Tag)
+	return b, nil
 }

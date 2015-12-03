@@ -1,6 +1,10 @@
 package qp
 
-import "io"
+import (
+	"encoding"
+	"errors"
+	"io"
+)
 
 // Default is the protocol used by the raw Encode and Decode functions.
 var Default = NineP2000
@@ -20,9 +24,9 @@ type MessageType byte
 // message tag, which is merely a convenience feature to save a type assert
 // for access to the tag.
 type Message interface {
+	encoding.BinaryUnmarshaler
+	encoding.BinaryMarshaler
 	EncodedLength() int
-	Encode(w io.Writer) error
-	Decode(r io.Reader) error
 	GetTag() Tag
 }
 
@@ -67,14 +71,23 @@ func (c *Codec) Decode(r io.Reader) (Message, error) {
 		return nil, err
 	}
 
-	// This LimitedReader is not a necessity, but used as an error checker.
-	limiter := &io.LimitedReader{R: r, N: int64(size) - HeaderSize}
+	size -= HeaderSize
+
+	b := make([]byte, size)
+	n, err := io.ReadFull(r, b)
+	if err != nil {
+		return nil, err
+	}
+	if n != int(size) {
+		return nil, errors.New("short read")
+	}
 
 	m, err := c.MT2M(mt)
 	if err != nil {
 		return nil, err
 	}
-	if err = m.Decode(limiter); err != nil {
+
+	if err = m.UnmarshalBinary(b); err != nil {
 		return nil, err
 	}
 	return m, nil
@@ -89,7 +102,12 @@ func (c *Codec) Encode(w io.Writer, m Message) error {
 		return err
 	}
 
-	size := uint32(m.EncodedLength() + HeaderSize)
+	var b []byte
+	if b, err = m.MarshalBinary(); err != nil {
+		return err
+	}
+
+	size := uint32(len(b) + HeaderSize)
 	if err = writeUint32(w, size); err != nil {
 		return err
 	}
@@ -98,9 +116,10 @@ func (c *Codec) Encode(w io.Writer, m Message) error {
 		return err
 	}
 
-	if err = m.Encode(w); err != nil {
+	if err = write(w, b); err != nil {
 		return err
 	}
+
 	return nil
 }
 
