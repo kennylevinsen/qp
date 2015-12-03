@@ -2,48 +2,53 @@ package qp
 
 import (
 	"bytes"
-	"io"
+	"encoding"
 	"reflect"
 	"testing"
 )
 
+type binaryBothWayer interface {
+	encoding.BinaryMarshaler
+	encoding.BinaryUnmarshaler
+}
+
 type codec interface {
 	EncodedLength() int
-	Encode(w io.Writer) error
-	Decode(r io.Reader) error
+	encoding.BinaryMarshaler
+	encoding.BinaryUnmarshaler
 }
 
 // Test if the types live up to their interface
 var (
-	_ codec   = (*Qid)(nil)
-	_ codec   = (*Stat)(nil)
-	_ Message = (*VersionRequest)(nil)
-	_ Message = (*VersionResponse)(nil)
-	_ Message = (*AuthRequest)(nil)
-	_ Message = (*AuthResponse)(nil)
-	_ Message = (*AttachRequest)(nil)
-	_ Message = (*AttachResponse)(nil)
-	_ Message = (*ErrorResponse)(nil)
-	_ Message = (*FlushRequest)(nil)
-	_ Message = (*FlushResponse)(nil)
-	_ Message = (*WalkRequest)(nil)
-	_ Message = (*WalkResponse)(nil)
-	_ Message = (*OpenRequest)(nil)
-	_ Message = (*OpenResponse)(nil)
-	_ Message = (*CreateRequest)(nil)
-	_ Message = (*CreateResponse)(nil)
-	_ Message = (*ReadRequest)(nil)
-	_ Message = (*ReadResponse)(nil)
-	_ Message = (*WriteRequest)(nil)
-	_ Message = (*WriteResponse)(nil)
-	_ Message = (*ClunkRequest)(nil)
-	_ Message = (*ClunkResponse)(nil)
-	_ Message = (*RemoveRequest)(nil)
-	_ Message = (*RemoveResponse)(nil)
-	_ Message = (*StatRequest)(nil)
-	_ Message = (*StatResponse)(nil)
-	_ Message = (*WriteStatRequest)(nil)
-	_ Message = (*WriteStatResponse)(nil)
+	_ binaryBothWayer = (*Qid)(nil)
+	_ binaryBothWayer = (*Stat)(nil)
+	_ binaryBothWayer = (*VersionRequest)(nil)
+	_ binaryBothWayer = (*VersionResponse)(nil)
+	_ binaryBothWayer = (*AuthRequest)(nil)
+	_ binaryBothWayer = (*AuthResponse)(nil)
+	_ binaryBothWayer = (*AttachRequest)(nil)
+	_ binaryBothWayer = (*AttachResponse)(nil)
+	_ binaryBothWayer = (*ErrorResponse)(nil)
+	_ binaryBothWayer = (*FlushRequest)(nil)
+	_ binaryBothWayer = (*FlushResponse)(nil)
+	_ binaryBothWayer = (*WalkRequest)(nil)
+	_ binaryBothWayer = (*WalkResponse)(nil)
+	_ binaryBothWayer = (*OpenRequest)(nil)
+	_ binaryBothWayer = (*OpenResponse)(nil)
+	_ binaryBothWayer = (*CreateRequest)(nil)
+	_ binaryBothWayer = (*CreateResponse)(nil)
+	_ binaryBothWayer = (*ReadRequest)(nil)
+	_ binaryBothWayer = (*ReadResponse)(nil)
+	_ binaryBothWayer = (*WriteRequest)(nil)
+	_ binaryBothWayer = (*WriteResponse)(nil)
+	_ binaryBothWayer = (*ClunkRequest)(nil)
+	_ binaryBothWayer = (*ClunkResponse)(nil)
+	_ binaryBothWayer = (*RemoveRequest)(nil)
+	_ binaryBothWayer = (*RemoveResponse)(nil)
+	_ binaryBothWayer = (*StatRequest)(nil)
+	_ binaryBothWayer = (*StatResponse)(nil)
+	_ binaryBothWayer = (*WriteStatRequest)(nil)
+	_ binaryBothWayer = (*WriteStatResponse)(nil)
 )
 
 var tests = []struct {
@@ -265,6 +270,7 @@ var tests = []struct {
 func reencode(i int, in codec, reference []byte, t *testing.T, p Protocol) {
 	var (
 		buf   = new(bytes.Buffer)
+		s     []byte
 		other codec
 		err   error
 	)
@@ -279,28 +285,27 @@ func reencode(i int, in codec, reference []byte, t *testing.T, p Protocol) {
 			t.Errorf("test %d: encoding failed for %v: %v", i, inputType, err)
 			return
 		}
-	} else {
-		if err := in.Encode(buf); err != nil {
-			t.Errorf("test %d: encoding failed for %v: %v", i, inputType, err)
+		if bytes.Compare(buf.Bytes(), reference) != 0 {
+			t.Errorf("test %d: binary representation not equal to reference for %v:\n\tExpected: %v\n\tGot:      %v", i, inputType, reference, buf.Bytes())
 			return
 		}
-	}
-
-	if bytes.Compare(buf.Bytes(), reference) != 0 {
-		t.Errorf("test %d: binary representation not equal to reference for %v:\n\tExpected: %v\n\tGot: %v", i, inputType, reference, buf.Bytes())
-		return
-	}
-
-	if isMessage {
 		other, err = p.Decode(buf)
 		if err != nil {
 			t.Errorf("test %d: decoding failed for %v: %v", i, inputType, err)
 			return
 		}
 	} else {
+		if s, err = in.MarshalBinary(); err != nil {
+			t.Errorf("test %d: encoding failed for %v: %v", i, inputType, err)
+			return
+		}
+		if bytes.Compare(s, reference) != 0 {
+			t.Errorf("test %d: binary representation not equal to reference for %v:\n\tExpected: %v\n\tGot:      %v", i, inputType, reference, buf.Bytes())
+			return
+		}
 		// Magic to construct a new codec of the input type
 		other = reflect.New(inputType).Interface().(codec)
-		if err := other.Decode(buf); err != nil {
+		if err = other.UnmarshalBinary(s); err != nil {
 			t.Errorf("test %d: decoding failed for %v: %v", i, inputType, err)
 			return
 		}
@@ -308,7 +313,7 @@ func reencode(i int, in codec, reference []byte, t *testing.T, p Protocol) {
 
 	// Comparing the interfaces would result in pointer comparisons, so get the basic type first
 	if !reflect.DeepEqual(reflect.ValueOf(in).Elem().Interface(), reflect.ValueOf(other).Elem().Interface()) {
-		t.Errorf("test %d: %v did not reencode correctly", i, inputType)
+		t.Errorf("test %d: %v did not reencode correctly\n\tExpected: %#v\n\tGot:      %#v", i, inputType, in, other)
 	}
 }
 
