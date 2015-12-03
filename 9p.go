@@ -93,25 +93,20 @@ func (*Qid) EncodedLength() int {
 }
 
 func (q *Qid) UnmarshalBinary(b []byte) error {
-	var err error
-	idx := 0
-	if q.Type, idx, err = nreadQidType(b, idx); err != nil {
-		return err
+	if len(b) < 13 {
+		return ErrPayloadTooShort
 	}
-	if q.Version, idx, err = nreadUint32(b, idx); err != nil {
-		return err
-	}
-	if q.Path, idx, err = nreadUint64(b, idx); err != nil {
-		return err
-	}
+	q.Type = QidType(b[0])
+	q.Version = binary.LittleEndian.Uint32(b[1:5])
+	q.Path = binary.LittleEndian.Uint64(b[5:13])
 	return nil
 }
 
 func (q *Qid) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 0, 13)
-	b = nwriteQidType(b, q.Type)
-	b = nwriteUint32(b, q.Version)
-	b = nwriteUint64(b, q.Path)
+	b := make([]byte, 13)
+	b[0] = byte(q.Type)
+	binary.LittleEndian.PutUint32(b[1:5], q.Version)
+	binary.LittleEndian.PutUint64(b[5:13], q.Path)
 	return b, nil
 }
 
@@ -158,70 +153,106 @@ func (s *Stat) EncodedLength() int {
 }
 
 func (s *Stat) UnmarshalBinary(b []byte) error {
-	var err error
-	idx := 0
-	if _, idx, err = nreadUint16(b, idx); err != nil {
-		return err
+	t := 2 + 2 + 4 + 13 + 4 + 4 + 4 + 8 + 8
+	if len(b) < t {
+		return ErrPayloadTooShort
 	}
-	if s.Type, idx, err = nreadUint16(b, idx); err != nil {
-		return err
+
+	// Well then, let's get started...
+	s.Type = binary.LittleEndian.Uint16(b[2:4])
+	s.Dev = binary.LittleEndian.Uint32(b[4:8])
+
+	// Decode the qid
+	s.Qid.Type = QidType(b[8])
+	s.Qid.Version = binary.LittleEndian.Uint32(b[9:13])
+	s.Qid.Path = binary.LittleEndian.Uint64(b[13:21])
+
+	// More of the main struct
+	s.Mode = FileMode(binary.LittleEndian.Uint32(b[21:25]))
+	s.Atime = binary.LittleEndian.Uint32(b[25:29])
+	s.Mtime = binary.LittleEndian.Uint32(b[29:33])
+	s.Length = binary.LittleEndian.Uint64(b[33:41])
+
+	// And now the variable part.
+
+	// Name
+	idx := 41
+	l := int(binary.LittleEndian.Uint16(b[idx : idx+2]))
+	if len(b) < t+l {
+		return ErrPayloadTooShort
 	}
-	if s.Dev, idx, err = nreadUint32(b, idx); err != nil {
-		return err
+	s.Name = string(b[idx+2 : idx+2+l])
+	idx += 2 + l
+	t += l
+
+	// UID
+	l = int(binary.LittleEndian.Uint16(b[idx : idx+2]))
+	if len(b) < t+int(l) {
+		return ErrPayloadTooShort
 	}
-	if s.Qid.Type, idx, err = nreadQidType(b, idx); err != nil {
-		return err
+	s.UID = string(b[idx+2 : idx+2+l])
+	idx += 2 + l
+	t += l
+
+	// GID
+	l = int(binary.LittleEndian.Uint16(b[idx : idx+2]))
+	if len(b) < t+l {
+		return ErrPayloadTooShort
 	}
-	if s.Qid.Version, idx, err = nreadUint32(b, idx); err != nil {
-		return err
+	s.GID = string(b[idx+2 : idx+2+l])
+	idx += 2 + l
+	t += l
+
+	// MUID
+	l = int(binary.LittleEndian.Uint16(b[idx : idx+2]))
+	if len(b) < t+l {
+		return ErrPayloadTooShort
 	}
-	if s.Qid.Path, idx, err = nreadUint64(b, idx); err != nil {
-		return err
-	}
-	if s.Mode, idx, err = nreadFileMode(b, idx); err != nil {
-		return err
-	}
-	if s.Atime, idx, err = nreadUint32(b, idx); err != nil {
-		return err
-	}
-	if s.Mtime, idx, err = nreadUint32(b, idx); err != nil {
-		return err
-	}
-	if s.Length, idx, err = nreadUint64(b, idx); err != nil {
-		return err
-	}
-	if s.Name, idx, err = nreadString(b, idx); err != nil {
-		return err
-	}
-	if s.UID, idx, err = nreadString(b, idx); err != nil {
-		return err
-	}
-	if s.GID, idx, err = nreadString(b, idx); err != nil {
-		return err
-	}
-	if s.MUID, idx, err = nreadString(b, idx); err != nil {
-		return err
-	}
+	s.MUID = string(b[idx+2 : idx+2+l])
+
 	return nil
 }
 
 func (s *Stat) MarshalBinary() ([]byte, error) {
 	l := 2 + 2 + 4 + 13 + 4 + 4 + 4 + 8 + 8 + len(s.Name) + len(s.UID) + len(s.GID) + len(s.MUID)
-	b := make([]byte, 2, l)
+	b := make([]byte, l)
 	binary.LittleEndian.PutUint16(b[0:2], uint16(l-2))
-	b = nwriteUint16(b, s.Type)
-	b = nwriteUint32(b, s.Dev)
-	b = nwriteQidType(b, s.Qid.Type)
-	b = nwriteUint32(b, s.Qid.Version)
-	b = nwriteUint64(b, s.Qid.Path)
-	b = nwriteFileMode(b, s.Mode)
-	b = nwriteUint32(b, s.Atime)
-	b = nwriteUint32(b, s.Mtime)
-	b = nwriteUint64(b, s.Length)
-	b = nwriteString(b, s.Name)
-	b = nwriteString(b, s.UID)
-	b = nwriteString(b, s.GID)
-	b = nwriteString(b, s.MUID)
+	binary.LittleEndian.PutUint16(b[2:4], s.Type)
+	binary.LittleEndian.PutUint32(b[4:8], s.Dev)
+
+	// Qid
+	b[8] = byte(s.Qid.Type)
+	binary.LittleEndian.PutUint32(b[9:13], s.Qid.Version)
+	binary.LittleEndian.PutUint64(b[13:21], s.Qid.Path)
+	binary.LittleEndian.PutUint32(b[21:25], uint32(s.Mode))
+	binary.LittleEndian.PutUint32(b[25:29], s.Atime)
+	binary.LittleEndian.PutUint32(b[29:33], s.Mtime)
+	binary.LittleEndian.PutUint64(b[33:41], s.Length)
+
+	// Variable things
+	// Name
+	idx := 41
+	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(s.Name)))
+	idx += 2
+	copy(b[idx:], []byte(s.Name))
+	idx += len(s.Name)
+
+	// UID
+	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(s.UID)))
+	idx += 2
+	copy(b[idx:], []byte(s.UID))
+	idx += len(s.UID)
+
+	// GID
+	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(s.GID)))
+	idx += 2
+	copy(b[idx:], []byte(s.GID))
+	idx += len(s.GID)
+
+	// MUID
+	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(s.MUID)))
+	idx += 2
+	copy(b[idx:], []byte(s.MUID))
 	return b, nil
 }
 
@@ -250,25 +281,25 @@ func (vr *VersionRequest) EncodedLength() int {
 }
 
 func (vr *VersionRequest) UnmarshalBinary(b []byte) error {
-	var err error
-	idx := 0
-	if vr.Tag, idx, err = nreadTag(b, idx); err != nil {
-		return err
+	if len(b) < 2+4+2 {
+		return ErrPayloadTooShort
 	}
-	if vr.MaxSize, idx, err = nreadUint32(b, idx); err != nil {
-		return err
+	vr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
+	vr.MaxSize = binary.LittleEndian.Uint32(b[2:6])
+	l := int(binary.LittleEndian.Uint16(b[6:8]))
+	if len(b) < 2+4+2+l {
+		return ErrPayloadTooShort
 	}
-	if vr.Version, idx, err = nreadString(b, idx); err != nil {
-		return err
-	}
+	vr.Version = string(b[8 : 8+l])
 	return nil
 }
 
 func (vr *VersionRequest) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 0, 2+4+2+len(vr.Version))
-	b = nwriteTag(b, vr.Tag)
-	b = nwriteUint32(b, vr.MaxSize)
-	b = nwriteString(b, vr.Version)
+	b := make([]byte, 2+4+2+len(vr.Version))
+	binary.LittleEndian.PutUint16(b[0:2], uint16(vr.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(vr.MaxSize))
+	binary.LittleEndian.PutUint16(b[6:8], uint16(len(vr.Version)))
+	copy(b[8:], []byte(vr.Version))
 	return b, nil
 }
 
@@ -295,25 +326,25 @@ func (vr *VersionResponse) EncodedLength() int {
 }
 
 func (vr *VersionResponse) UnmarshalBinary(b []byte) error {
-	var err error
-	idx := 0
-	if vr.Tag, idx, err = nreadTag(b, idx); err != nil {
-		return err
+	if len(b) < 2+4+2 {
+		return ErrPayloadTooShort
 	}
-	if vr.MaxSize, idx, err = nreadUint32(b, idx); err != nil {
-		return err
+	vr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
+	vr.MaxSize = binary.LittleEndian.Uint32(b[2:6])
+	l := int(binary.LittleEndian.Uint16(b[6:8]))
+	if len(b) < 2+4+2+l {
+		return ErrPayloadTooShort
 	}
-	if vr.Version, idx, err = nreadString(b, idx); err != nil {
-		return err
-	}
+	vr.Version = string(b[8 : 8+l])
 	return nil
 }
 
 func (vr *VersionResponse) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 0, 2+4+2+len(vr.Version))
-	b = nwriteTag(b, vr.Tag)
-	b = nwriteUint32(b, vr.MaxSize)
-	b = nwriteString(b, vr.Version)
+	b := make([]byte, 2+4+2+len(vr.Version))
+	binary.LittleEndian.PutUint16(b[0:2], uint16(vr.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(vr.MaxSize))
+	binary.LittleEndian.PutUint16(b[6:8], uint16(len(vr.Version)))
+	copy(b[8:], []byte(vr.Version))
 	return b, nil
 }
 
@@ -342,29 +373,36 @@ func (ar *AuthRequest) EncodedLength() int {
 }
 
 func (ar *AuthRequest) UnmarshalBinary(b []byte) error {
-	var err error
-	idx := 0
-	if ar.Tag, idx, err = nreadTag(b, idx); err != nil {
-		return err
+	if len(b) < 2+4+2+2 {
+		return ErrPayloadTooShort
 	}
-	if ar.AuthFid, idx, err = nreadFid(b, idx); err != nil {
-		return err
+	ar.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
+	ar.AuthFid = Fid(binary.LittleEndian.Uint32(b[2:6]))
+	l := int(binary.LittleEndian.Uint16(b[6:8]))
+	if len(b) < 2+4+2+l {
+		return ErrPayloadTooShort
 	}
-	if ar.Username, idx, err = nreadString(b, idx); err != nil {
-		return err
+	ar.Username = string(b[8 : 8+l])
+	idx := 8 + l
+	l = int(binary.LittleEndian.Uint16(b[idx : idx+2]))
+	if len(b) < idx+2+l {
+		return ErrPayloadTooShort
 	}
-	if ar.Service, idx, err = nreadString(b, idx); err != nil {
-		return err
-	}
-	return err
+	ar.Service = string(b[idx+2 : idx+2+l])
+	return nil
 }
 
 func (ar *AuthRequest) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 0, 2+4+2+len(ar.Username)+2+len(ar.Service))
-	b = nwriteTag(b, ar.Tag)
-	b = nwriteFid(b, ar.AuthFid)
-	b = nwriteString(b, ar.Username)
-	b = nwriteString(b, ar.Service)
+	b := make([]byte, 2+4+2+len(ar.Username)+2+len(ar.Service))
+	binary.LittleEndian.PutUint16(b[0:2], uint16(ar.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(ar.AuthFid))
+
+	binary.LittleEndian.PutUint16(b[6:8], uint16(len(ar.Username)))
+	copy(b[8:], []byte(ar.Username))
+	idx := 8 + len(ar.Username)
+
+	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(ar.Service)))
+	copy(b[idx+2:], []byte(ar.Service))
 	return b, nil
 }
 
@@ -384,25 +422,23 @@ func (*AuthResponse) EncodedLength() int {
 }
 
 func (ar *AuthResponse) UnmarshalBinary(b []byte) error {
-	var err error
-	idx := 0
-	if ar.Tag, idx, err = nreadTag(b, idx); err != nil {
-		return err
+	if len(b) < 2+13 {
+		return ErrPayloadTooShort
 	}
-	if err = ar.AuthQid.UnmarshalBinary(b[idx : idx+13]); err != nil {
-		return err
-	}
+
+	ar.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
+	ar.AuthQid.Type = QidType(b[2])
+	ar.AuthQid.Version = binary.LittleEndian.Uint32(b[3:7])
+	ar.AuthQid.Path = binary.LittleEndian.Uint64(b[7:15])
 	return nil
 }
 
 func (ar *AuthResponse) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 0, 2+13)
-	b = nwriteTag(b, ar.Tag)
-	x, err := ar.AuthQid.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-	b = append(b, x...)
+	b := make([]byte, 2+13)
+	binary.LittleEndian.PutUint16(b[0:2], uint16(ar.Tag))
+	b[2] = byte(ar.AuthQid.Type)
+	binary.LittleEndian.PutUint32(b[3:7], ar.AuthQid.Version)
+	binary.LittleEndian.PutUint64(b[7:15], ar.AuthQid.Path)
 	return b, nil
 }
 
@@ -434,33 +470,38 @@ func (ar *AttachRequest) EncodedLength() int {
 }
 
 func (ar *AttachRequest) UnmarshalBinary(b []byte) error {
-	var err error
-	idx := 0
-	if ar.Tag, idx, err = nreadTag(b, idx); err != nil {
-		return err
+	if len(b) < 2+4+4+2+2 {
+		return ErrPayloadTooShort
 	}
-	if ar.Fid, idx, err = nreadFid(b, idx); err != nil {
-		return err
+	ar.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
+	ar.Fid = Fid(binary.LittleEndian.Uint32(b[2:6]))
+	ar.AuthFid = Fid(binary.LittleEndian.Uint32(b[6:10]))
+	l := int(binary.LittleEndian.Uint16(b[10:12]))
+	if len(b) < 2+4+4+2+l {
+		return ErrPayloadTooShort
 	}
-	if ar.AuthFid, idx, err = nreadFid(b, idx); err != nil {
-		return err
+	ar.Username = string(b[12 : 12+l])
+	idx := 12 + l
+	l = int(binary.LittleEndian.Uint16(b[idx : idx+2]))
+	if len(b) < idx+2+l {
+		return ErrPayloadTooShort
 	}
-	if ar.Username, idx, err = nreadString(b, idx); err != nil {
-		return err
-	}
-	if ar.Service, idx, err = nreadString(b, idx); err != nil {
-		return err
-	}
-	return err
+	ar.Service = string(b[idx+2 : idx+2+l])
+	return nil
 }
 
 func (ar *AttachRequest) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 0, 2+4+4+2+len(ar.Username)+2+len(ar.Service))
-	b = nwriteTag(b, ar.Tag)
-	b = nwriteFid(b, ar.Fid)
-	b = nwriteFid(b, ar.AuthFid)
-	b = nwriteString(b, ar.Username)
-	b = nwriteString(b, ar.Service)
+	b := make([]byte, 2+4+4+2+len(ar.Username)+2+len(ar.Service))
+	binary.LittleEndian.PutUint16(b[0:2], uint16(ar.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(ar.Fid))
+	binary.LittleEndian.PutUint32(b[6:10], uint32(ar.AuthFid))
+
+	binary.LittleEndian.PutUint16(b[10:12], uint16(len(ar.Username)))
+	copy(b[12:], []byte(ar.Username))
+	idx := 12 + len(ar.Username)
+
+	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(ar.Service)))
+	copy(b[idx+2:], []byte(ar.Service))
 	return b, nil
 }
 
@@ -478,25 +519,23 @@ func (*AttachResponse) EncodedLength() int {
 }
 
 func (ar *AttachResponse) UnmarshalBinary(b []byte) error {
-	var err error
-	idx := 0
-	if ar.Tag, idx, err = nreadTag(b, idx); err != nil {
-		return err
+	if len(b) < 2+13 {
+		return ErrPayloadTooShort
 	}
-	if err = ar.Qid.UnmarshalBinary(b[idx : idx+13]); err != nil {
-		return err
-	}
+
+	ar.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
+	ar.Qid.Type = QidType(b[2])
+	ar.Qid.Version = binary.LittleEndian.Uint32(b[3:7])
+	ar.Qid.Path = binary.LittleEndian.Uint64(b[7:15])
 	return nil
 }
 
 func (ar *AttachResponse) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 0, 2+13)
-	b = nwriteTag(b, ar.Tag)
-	x, err := ar.Qid.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-	b = append(b, x...)
+	b := make([]byte, 2+13)
+	binary.LittleEndian.PutUint16(b[0:2], uint16(ar.Tag))
+	b[2] = byte(ar.Qid.Type)
+	binary.LittleEndian.PutUint32(b[3:7], ar.Qid.Version)
+	binary.LittleEndian.PutUint64(b[7:15], ar.Qid.Path)
 	return b, nil
 }
 
@@ -516,21 +555,23 @@ func (er *ErrorResponse) EncodedLength() int {
 }
 
 func (er *ErrorResponse) UnmarshalBinary(b []byte) error {
-	var err error
-	idx := 0
-	if er.Tag, idx, err = nreadTag(b, idx); err != nil {
-		return err
+	if len(b) < 2+2 {
+		return ErrPayloadTooShort
 	}
-	if er.Error, idx, err = nreadString(b, idx); err != nil {
-		return err
+	er.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
+	l := int(binary.LittleEndian.Uint16(b[2:4]))
+	if len(b) < 2+2+l {
+		return ErrPayloadTooShort
 	}
+	er.Error = string(b[4 : 4+l])
 	return nil
 }
 
 func (er *ErrorResponse) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 0, 2+2+len(er.Error))
-	b = nwriteTag(b, er.Tag)
-	b = nwriteString(b, er.Error)
+	b := make([]byte, 2+2+len(er.Error))
+	binary.LittleEndian.PutUint16(b[0:2], uint16(er.Tag))
+	binary.LittleEndian.PutUint16(b[2:4], uint16(len(er.Error)))
+	copy(b[4:], []byte(er.Error))
 	return b, nil
 }
 
@@ -549,21 +590,18 @@ func (*FlushRequest) EncodedLength() int {
 }
 
 func (fr *FlushRequest) UnmarshalBinary(b []byte) error {
-	var err error
-	idx := 0
-	if fr.Tag, idx, err = nreadTag(b, idx); err != nil {
-		return err
+	if len(b) < 2+2 {
+		return ErrPayloadTooShort
 	}
-	if fr.OldTag, idx, err = nreadTag(b, idx); err != nil {
-		return err
-	}
+	fr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
+	fr.OldTag = Tag(binary.LittleEndian.Uint16(b[2:4]))
 	return nil
 }
 
 func (fr *FlushRequest) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 0, 2+2)
-	b = nwriteTag(b, fr.Tag)
-	b = nwriteTag(b, fr.OldTag)
+	b := make([]byte, 2+2)
+	binary.LittleEndian.PutUint16(b[0:2], uint16(fr.Tag))
+	binary.LittleEndian.PutUint16(b[2:4], uint16(fr.OldTag))
 	return b, nil
 }
 
@@ -579,17 +617,16 @@ func (*FlushResponse) EncodedLength() int {
 }
 
 func (fr *FlushResponse) UnmarshalBinary(b []byte) error {
-	var err error
-	idx := 0
-	if fr.Tag, idx, err = nreadTag(b, idx); err != nil {
-		return err
+	if len(b) < 2 {
+		return ErrPayloadTooShort
 	}
+	fr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
 	return nil
 }
 
 func (fr *FlushResponse) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 0, 2)
-	b = nwriteTag(b, fr.Tag)
+	b := make([]byte, 2)
+	binary.LittleEndian.PutUint16(b[0:2], uint16(fr.Tag))
 	return b, nil
 }
 
@@ -619,38 +656,47 @@ func (wr *WalkRequest) EncodedLength() int {
 }
 
 func (wr *WalkRequest) UnmarshalBinary(b []byte) error {
-	var err error
-	idx := 0
-	if wr.Tag, idx, err = nreadTag(b, idx); err != nil {
-		return err
+	t := 2 + 4 + 4 + 2
+	if len(b) < t {
+		return ErrPayloadTooShort
 	}
-	if wr.Fid, idx, err = nreadFid(b, idx); err != nil {
-		return err
-	}
-	if wr.NewFid, idx, err = nreadFid(b, idx); err != nil {
-		return err
-	}
-	var l uint16
-	if l, idx, err = nreadUint16(b, idx); err != nil {
-		return err
-	}
+	wr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
+	wr.Fid = Fid(binary.LittleEndian.Uint32(b[2:6]))
+	wr.NewFid = Fid(binary.LittleEndian.Uint32(b[6:10]))
+	l := int(binary.LittleEndian.Uint16(b[10:12]))
+	idx := 12
 	wr.Names = make([]string, l)
 	for i := range wr.Names {
-		if wr.Names[i], idx, err = nreadString(b, idx); err != nil {
-			return err
+		if len(b) < t+2 {
+			return ErrPayloadTooShort
 		}
+		l = int(binary.LittleEndian.Uint16(b[idx : idx+2]))
+		if len(b) < t+2+l {
+			return ErrPayloadTooShort
+		}
+		wr.Names[i] = string(b[idx+2 : idx+2+l])
+		idx += 2 + l
+		t += 2 + l
 	}
 	return nil
 }
 
 func (wr *WalkRequest) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 0, 2+4+4+2+64)
-	b = nwriteTag(b, wr.Tag)
-	b = nwriteFid(b, wr.Fid)
-	b = nwriteFid(b, wr.NewFid)
-	b = nwriteUint16(b, uint16(len(wr.Names)))
+	l := 2 + 4 + 4 + 2
 	for i := range wr.Names {
-		b = nwriteString(b, wr.Names[i])
+		l += 2 + len(wr.Names[i])
+	}
+	b := make([]byte, l)
+	binary.LittleEndian.PutUint16(b[0:2], uint16(wr.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(wr.Fid))
+	binary.LittleEndian.PutUint32(b[6:10], uint32(wr.NewFid))
+	binary.LittleEndian.PutUint16(b[10:12], uint16(len(wr.Names)))
+	idx := 12
+	for i := range wr.Names {
+		l := len(wr.Names[i])
+		binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(l))
+		copy(b[idx+2:], []byte(wr.Names[i]))
+		idx += 2 + l
 	}
 	return b, nil
 }
@@ -671,35 +717,35 @@ func (wr *WalkResponse) EncodedLength() int {
 }
 
 func (wr *WalkResponse) UnmarshalBinary(b []byte) error {
-	var err error
-	idx := 0
-	if wr.Tag, idx, err = nreadTag(b, idx); err != nil {
-		return err
+	if len(b) < 2+2 {
+		return ErrPayloadTooShort
 	}
-	var l uint16
-	if l, idx, err = nreadUint16(b, idx); err != nil {
-		return err
+
+	wr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
+	l := int(binary.LittleEndian.Uint16(b[2:4]))
+	if len(b) < 2+2+l {
+		return ErrPayloadTooShort
 	}
 	wr.Qids = make([]Qid, l)
+	idx := 4
 	for i := range wr.Qids {
-		if err = wr.Qids[i].UnmarshalBinary(b[idx : idx+13]); err != nil {
-			return err
-		}
-		idx += 13
+		wr.Qids[i].Type = QidType(b[idx])
+		wr.Qids[i].Version = binary.LittleEndian.Uint32(b[idx+1 : idx+5])
+		wr.Qids[i].Path = binary.LittleEndian.Uint64(b[idx+5 : idx+13])
 	}
 	return nil
 }
 
 func (wr *WalkResponse) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 0, 2+2+13*len(wr.Qids))
-	b = nwriteTag(b, wr.Tag)
-	b = nwriteUint16(b, uint16(len(wr.Qids)))
+	b := make([]byte, 2+2+13*len(wr.Qids))
+	binary.LittleEndian.PutUint16(b[0:2], uint16(wr.Tag))
+	binary.LittleEndian.PutUint16(b[2:4], uint16(len(wr.Qids)))
+	idx := 4
 	for i := range wr.Qids {
-		x, err := wr.Qids[i].MarshalBinary()
-		if err != nil {
-			return nil, err
-		}
-		b = append(b, x...)
+		b[idx] = byte(wr.Qids[i].Type)
+		binary.LittleEndian.PutUint32(b[idx+1:idx+5], wr.Qids[i].Version)
+		binary.LittleEndian.PutUint64(b[idx+5:idx+13], wr.Qids[i].Path)
+		idx += 13
 	}
 	return b, nil
 }
@@ -721,25 +767,21 @@ func (*OpenRequest) EncodedLength() int {
 }
 
 func (or *OpenRequest) UnmarshalBinary(b []byte) error {
-	var err error
-	idx := 0
-	if or.Tag, idx, err = nreadTag(b, idx); err != nil {
-		return err
+	if len(b) < 2+4+1 {
+		return ErrPayloadTooShort
 	}
-	if or.Fid, idx, err = nreadFid(b, idx); err != nil {
-		return err
-	}
-	if or.Mode, idx, err = nreadOpenMode(b, idx); err != nil {
-		return err
-	}
+
+	or.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
+	or.Fid = Fid(binary.LittleEndian.Uint32(b[2:6]))
+	or.Mode = OpenMode(b[6])
 	return nil
 }
 
 func (or *OpenRequest) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 0, 2+4+1)
-	b = nwriteTag(b, or.Tag)
-	b = nwriteFid(b, or.Fid)
-	b = nwriteOpenMode(b, or.Mode)
+	b := make([]byte, 2+4+1)
+	binary.LittleEndian.PutUint16(b[0:2], uint16(or.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(or.Fid))
+	b[6] = byte(or.Mode)
 	return b, nil
 }
 
@@ -763,30 +805,25 @@ func (*OpenResponse) EncodedLength() int {
 }
 
 func (or *OpenResponse) UnmarshalBinary(b []byte) error {
-	var err error
-	idx := 0
-	if or.Tag, idx, err = nreadTag(b, idx); err != nil {
-		return err
+	if len(b) < 2+13+4 {
+		return ErrPayloadTooShort
 	}
-	if err = or.Qid.UnmarshalBinary(b[idx : idx+13]); err != nil {
-		return err
-	}
-	idx += 13
-	if or.IOUnit, idx, err = nreadUint32(b, idx); err != nil {
-		return err
-	}
+
+	or.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
+	or.Qid.Type = QidType(b[2])
+	or.Qid.Version = binary.LittleEndian.Uint32(b[3:7])
+	or.Qid.Path = binary.LittleEndian.Uint64(b[7:15])
+	or.IOUnit = binary.LittleEndian.Uint32(b[15:19])
 	return nil
 }
 
 func (or *OpenResponse) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 0, 2+13+4)
-	b = nwriteTag(b, or.Tag)
-	x, err := or.Qid.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-	b = append(b, x...)
-	b = nwriteUint32(b, or.IOUnit)
+	b := make([]byte, 2+13+4)
+	binary.LittleEndian.PutUint16(b[0:2], uint16(or.Tag))
+	b[2] = byte(or.Qid.Type)
+	binary.LittleEndian.PutUint32(b[3:7], or.Qid.Version)
+	binary.LittleEndian.PutUint64(b[7:15], or.Qid.Path)
+	binary.LittleEndian.PutUint32(b[15:19], or.IOUnit)
 	return b, nil
 }
 
@@ -817,33 +854,32 @@ func (cr *CreateRequest) EncodedLength() int {
 }
 
 func (cr *CreateRequest) UnmarshalBinary(b []byte) error {
-	var err error
-	idx := 0
-	if cr.Tag, idx, err = nreadTag(b, idx); err != nil {
-		return err
+	if len(b) < 2+4+2+len(cr.Name)+4+1 {
+		return ErrPayloadTooShort
 	}
-	if cr.Fid, idx, err = nreadFid(b, idx); err != nil {
-		return err
-	}
-	if cr.Name, idx, err = nreadString(b, idx); err != nil {
-		return err
-	}
-	if cr.Permissions, idx, err = nreadFileMode(b, idx); err != nil {
-		return err
-	}
-	if cr.Mode, idx, err = nreadOpenMode(b, idx); err != nil {
-		return err
-	}
+	cr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
+	cr.Fid = Fid(binary.LittleEndian.Uint32(b[2:6]))
+	l := int(binary.LittleEndian.Uint16(b[6:8]))
+	idx := 8
+	cr.Name = string(b[idx : idx+l])
+	idx += l
+	cr.Permissions = FileMode(binary.LittleEndian.Uint32(b[idx : idx+4]))
+	cr.Mode = OpenMode(b[idx+4])
 	return nil
 }
 
 func (cr *CreateRequest) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 0, 2+4+2+len(cr.Name)+4+1)
-	b = nwriteTag(b, cr.Tag)
-	b = nwriteFid(b, cr.Fid)
-	b = nwriteString(b, cr.Name)
-	b = nwriteFileMode(b, cr.Permissions)
-	b = nwriteOpenMode(b, cr.Mode)
+	b := make([]byte, 2+4+2+len(cr.Name)+4+1)
+	binary.LittleEndian.PutUint16(b[0:2], uint16(cr.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(cr.Fid))
+	binary.LittleEndian.PutUint16(b[6:8], uint16(len(cr.Name)))
+
+	idx := 8
+	copy(b[idx:idx+len(cr.Name)], []byte(cr.Name))
+	idx += len(cr.Name)
+
+	binary.LittleEndian.PutUint32(b[idx:idx+4], uint32(cr.Permissions))
+	b[idx+4] = byte(cr.Mode)
 	return b, nil
 }
 
@@ -867,30 +903,24 @@ func (*CreateResponse) EncodedLength() int {
 }
 
 func (cr *CreateResponse) UnmarshalBinary(b []byte) error {
-	var err error
-	idx := 0
-	if cr.Tag, idx, err = nreadTag(b, idx); err != nil {
-		return err
+	if len(b) < 2+13+4 {
+		return ErrPayloadTooShort
 	}
-	if err = cr.Qid.UnmarshalBinary(b[idx : idx+13]); err != nil {
-		return err
-	}
-	idx += 13
-	if cr.IOUnit, idx, err = nreadUint32(b, idx); err != nil {
-		return err
-	}
+	cr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
+	cr.Qid.Type = QidType(b[3])
+	cr.Qid.Version = binary.LittleEndian.Uint32(b[3:7])
+	cr.Qid.Path = binary.LittleEndian.Uint64(b[7:15])
+	cr.IOUnit = binary.LittleEndian.Uint32(b[15:19])
 	return nil
 }
 
 func (cr *CreateResponse) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 0, 2+13+4)
-	b = nwriteTag(b, cr.Tag)
-	x, err := cr.Qid.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-	b = append(b, x...)
-	b = nwriteUint32(b, cr.IOUnit)
+	b := make([]byte, 2+13+4)
+	binary.LittleEndian.PutUint16(b[0:2], uint16(cr.Tag))
+	b[3] = byte(cr.Qid.Type)
+	binary.LittleEndian.PutUint32(b[3:7], cr.Qid.Version)
+	binary.LittleEndian.PutUint64(b[7:15], cr.Qid.Path)
+	binary.LittleEndian.PutUint32(b[15:19], cr.IOUnit)
 	return b, nil
 }
 
@@ -914,29 +944,23 @@ func (*ReadRequest) EncodedLength() int {
 }
 
 func (rr *ReadRequest) UnmarshalBinary(b []byte) error {
-	var err error
-	idx := 0
-	if rr.Tag, idx, err = nreadTag(b, idx); err != nil {
-		return err
+	if len(b) < 2+4+8+4 {
+		return ErrPayloadTooShort
 	}
-	if rr.Fid, idx, err = nreadFid(b, idx); err != nil {
-		return err
-	}
-	if rr.Offset, idx, err = nreadUint64(b, idx); err != nil {
-		return err
-	}
-	if rr.Count, idx, err = nreadUint32(b, idx); err != nil {
-		return err
-	}
+
+	rr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
+	rr.Fid = Fid(binary.LittleEndian.Uint32(b[2:6]))
+	rr.Offset = binary.LittleEndian.Uint64(b[6:14])
+	rr.Count = binary.LittleEndian.Uint32(b[14:18])
 	return nil
 }
 
 func (rr *ReadRequest) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 0, 2+4+8+4)
-	b = nwriteTag(b, rr.Tag)
-	b = nwriteFid(b, rr.Fid)
-	b = nwriteUint64(b, rr.Offset)
-	b = nwriteUint32(b, rr.Count)
+	b := make([]byte, 2+4+8+4)
+	binary.LittleEndian.PutUint16(b[0:2], uint16(rr.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(rr.Fid))
+	binary.LittleEndian.PutUint64(b[6:14], rr.Offset)
+	binary.LittleEndian.PutUint32(b[14:18], rr.Count)
 	return b, nil
 }
 
@@ -954,28 +978,25 @@ func (rr *ReadResponse) EncodedLength() int {
 }
 
 func (rr *ReadResponse) UnmarshalBinary(b []byte) error {
-	var err error
-	idx := 0
-	if rr.Tag, idx, err = nreadTag(b, idx); err != nil {
-		return err
+	if len(b) < 2+4 {
+		return ErrPayloadTooShort
 	}
-	var l uint32
-	if l, idx, err = nreadUint32(b, idx); err != nil {
-		return err
-	}
-	if len(b) < int(l)+idx {
+
+	rr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
+	l := int(binary.LittleEndian.Uint32(b[2:6]))
+	if len(b) < 2+4+l {
 		return ErrPayloadTooShort
 	}
 	rr.Data = make([]byte, l)
-	copy(rr.Data, b[idx:idx+int(l)])
+	copy(rr.Data, b[6:6+l])
 	return nil
 }
 
 func (rr *ReadResponse) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 0, 2+4+len(rr.Data))
-	b = nwriteTag(b, rr.Tag)
-	b = nwriteUint32(b, uint32(len(rr.Data)))
-	b = append(b, rr.Data...)
+	b := make([]byte, 2+4+len(rr.Data))
+	binary.LittleEndian.PutUint16(b[0:2], uint16(rr.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(len(rr.Data)))
+	copy(b[6:], rr.Data)
 	return b, nil
 }
 
@@ -999,36 +1020,32 @@ func (wr *WriteRequest) EncodedLength() int {
 }
 
 func (wr *WriteRequest) UnmarshalBinary(b []byte) error {
-	var err error
-	idx := 0
-	if wr.Tag, idx, err = nreadTag(b, idx); err != nil {
-		return err
-	}
-	if wr.Fid, idx, err = nreadFid(b, idx); err != nil {
-		return err
-	}
-	if wr.Offset, idx, err = nreadUint64(b, idx); err != nil {
-		return err
-	}
-	var l uint32
-	if l, idx, err = nreadUint32(b, idx); err != nil {
-		return err
-	}
-	if len(b) < int(l)+idx {
+	t := 2 + 4 + 8 + 4
+	if len(b) < t {
 		return ErrPayloadTooShort
 	}
+
+	wr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
+	wr.Fid = Fid(binary.LittleEndian.Uint32(b[2:6]))
+	wr.Offset = binary.LittleEndian.Uint64(b[6:14])
+
+	l := int(binary.LittleEndian.Uint32(b[14:18]))
+	if len(b) < t+l {
+		return ErrPayloadTooShort
+	}
+
 	wr.Data = make([]byte, l)
-	copy(wr.Data, b[idx:idx+int(l)])
+	copy(wr.Data, b[18:18+l])
 	return nil
 }
 
 func (wr *WriteRequest) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 0, 2+4+8+4+len(wr.Data))
-	b = nwriteTag(b, wr.Tag)
-	b = nwriteFid(b, wr.Fid)
-	b = nwriteUint64(b, wr.Offset)
-	b = nwriteUint32(b, uint32(len(wr.Data)))
-	b = append(b, wr.Data...)
+	b := make([]byte, 2+4+8+4+len(wr.Data))
+	binary.LittleEndian.PutUint16(b[0:2], uint16(wr.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(wr.Fid))
+	binary.LittleEndian.PutUint64(b[6:14], wr.Offset)
+	binary.LittleEndian.PutUint32(b[14:18], uint32(len(wr.Data)))
+	copy(b[18:], wr.Data)
 	return b, nil
 }
 
@@ -1046,21 +1063,19 @@ func (*WriteResponse) EncodedLength() int {
 }
 
 func (wr *WriteResponse) UnmarshalBinary(b []byte) error {
-	var err error
-	idx := 0
-	if wr.Tag, idx, err = nreadTag(b, idx); err != nil {
-		return err
+	if len(b) < 2+4 {
+		return ErrPayloadTooShort
 	}
-	if wr.Count, idx, err = nreadUint32(b, idx); err != nil {
-		return err
-	}
+
+	wr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
+	wr.Count = binary.LittleEndian.Uint32(b[2:6])
 	return nil
 }
 
 func (wr *WriteResponse) MarshalBinary() ([]byte, error) {
-	var b []byte
-	b = nwriteTag(b, wr.Tag)
-	b = nwriteUint32(b, wr.Count)
+	b := make([]byte, 2+4)
+	binary.LittleEndian.PutUint16(b[0:2], uint16(wr.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], wr.Count)
 	return b, nil
 }
 
@@ -1078,21 +1093,19 @@ func (*ClunkRequest) EncodedLength() int {
 }
 
 func (cr *ClunkRequest) UnmarshalBinary(b []byte) error {
-	var err error
-	idx := 0
-	if cr.Tag, idx, err = nreadTag(b, idx); err != nil {
-		return err
+	if len(b) < 2+4 {
+		return ErrPayloadTooShort
 	}
-	if cr.Fid, idx, err = nreadFid(b, idx); err != nil {
-		return err
-	}
+
+	cr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
+	cr.Fid = Fid(binary.LittleEndian.Uint32(b[2:6]))
 	return nil
 }
 
 func (cr *ClunkRequest) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 0, 2+4)
-	b = nwriteTag(b, cr.Tag)
-	b = nwriteFid(b, cr.Fid)
+	b := make([]byte, 2+4)
+	binary.LittleEndian.PutUint16(b[0:2], uint16(cr.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(cr.Fid))
 	return b, nil
 }
 
@@ -1107,17 +1120,17 @@ func (*ClunkResponse) EncodedLength() int {
 }
 
 func (cr *ClunkResponse) UnmarshalBinary(b []byte) error {
-	var err error
-	idx := 0
-	if cr.Tag, idx, err = nreadTag(b, idx); err != nil {
-		return err
+	if len(b) < 2 {
+		return ErrPayloadTooShort
 	}
+
+	cr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
 	return nil
 }
 
 func (cr *ClunkResponse) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 0, 2)
-	b = nwriteTag(b, cr.Tag)
+	b := make([]byte, 2)
+	binary.LittleEndian.PutUint16(b[0:2], uint16(cr.Tag))
 	return b, nil
 }
 
@@ -1135,21 +1148,19 @@ func (*RemoveRequest) EncodedLength() int {
 }
 
 func (rr *RemoveRequest) UnmarshalBinary(b []byte) error {
-	var err error
-	idx := 0
-	if rr.Tag, idx, err = nreadTag(b, idx); err != nil {
-		return err
+	if len(b) < 2+4 {
+		return ErrPayloadTooShort
 	}
-	if rr.Fid, idx, err = nreadFid(b, idx); err != nil {
-		return err
-	}
+
+	rr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
+	rr.Fid = Fid(binary.LittleEndian.Uint32(b[2:6]))
 	return nil
 }
 
 func (rr *RemoveRequest) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 0, 2+4)
-	b = nwriteTag(b, rr.Tag)
-	b = nwriteFid(b, rr.Fid)
+	b := make([]byte, 2+4)
+	binary.LittleEndian.PutUint16(b[0:2], uint16(rr.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(rr.Fid))
 	return b, nil
 }
 
@@ -1164,17 +1175,17 @@ func (*RemoveResponse) EncodedLength() int {
 }
 
 func (rr *RemoveResponse) UnmarshalBinary(b []byte) error {
-	var err error
-	idx := 0
-	if rr.Tag, idx, err = nreadTag(b, idx); err != nil {
-		return err
+	if len(b) < 2 {
+		return ErrPayloadTooShort
 	}
+
+	rr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
 	return nil
 }
 
 func (rr *RemoveResponse) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 0, 2)
-	b = nwriteTag(b, rr.Tag)
+	b := make([]byte, 2)
+	binary.LittleEndian.PutUint16(b[0:2], uint16(rr.Tag))
 	return b, nil
 }
 
@@ -1192,21 +1203,19 @@ func (*StatRequest) EncodedLength() int {
 }
 
 func (sr *StatRequest) UnmarshalBinary(b []byte) error {
-	var err error
-	idx := 0
-	if sr.Tag, idx, err = nreadTag(b, idx); err != nil {
-		return err
+	if len(b) < 2+4 {
+		return ErrPayloadTooShort
 	}
-	if sr.Fid, idx, err = nreadFid(b, idx); err != nil {
-		return err
-	}
+
+	sr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
+	sr.Fid = Fid(binary.LittleEndian.Uint32(b[2:6]))
 	return nil
 }
 
 func (sr *StatRequest) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 0, 2+4)
-	b = nwriteTag(b, sr.Tag)
-	b = nwriteFid(b, sr.Fid)
+	b := make([]byte, 2+4)
+	binary.LittleEndian.PutUint16(b[0:2], uint16(sr.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(sr.Fid))
 	return b, nil
 }
 
@@ -1224,30 +1233,24 @@ func (sr *StatResponse) EncodedLength() int {
 }
 
 func (sr *StatResponse) UnmarshalBinary(b []byte) error {
-	var err error
-	idx := 0
-	if sr.Tag, idx, err = nreadTag(b, idx); err != nil {
-		return err
+	if len(b) < 2+2 {
+		return ErrPayloadTooShort
 	}
-	var l uint16
-	if l, idx, err = nreadUint16(b, idx); err != nil {
-		return err
-	}
-	if err = sr.Stat.UnmarshalBinary(b[idx : idx+int(l)]); err != nil {
-		return err
-	}
-	return nil
+
+	sr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
+	return sr.Stat.UnmarshalBinary(b[4:])
 }
 
 func (sr *StatResponse) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 0, 2+2+64)
-	b = nwriteTag(b, sr.Tag)
 	x, err := sr.Stat.MarshalBinary()
 	if err != nil {
 		return nil, err
 	}
-	b = nwriteUint16(b, uint16(len(x)))
-	b = append(b, x...)
+
+	b := make([]byte, 2+2+len(x))
+	binary.LittleEndian.PutUint16(b[0:2], uint16(sr.Tag))
+	binary.LittleEndian.PutUint16(b[2:4], uint16(len(x)))
+	copy(b[4:], x)
 	return b, nil
 }
 
@@ -1275,34 +1278,26 @@ func (wsr *WriteStatRequest) EncodedLength() int {
 }
 
 func (wsr *WriteStatRequest) UnmarshalBinary(b []byte) error {
-	var err error
-	idx := 0
-	if wsr.Tag, idx, err = nreadTag(b, idx); err != nil {
-		return err
+	if len(b) < 2+4+2 {
+		return ErrPayloadTooShort
 	}
-	if wsr.Fid, idx, err = nreadFid(b, idx); err != nil {
-		return err
-	}
-	var l uint16
-	if l, idx, err = nreadUint16(b, idx); err != nil {
-		return err
-	}
-	if err = wsr.Stat.UnmarshalBinary(b[idx : idx+int(l)]); err != nil {
-		return err
-	}
-	return nil
+
+	wsr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
+	wsr.Fid = Fid(binary.LittleEndian.Uint32(b[2:6]))
+	return wsr.Stat.UnmarshalBinary(b[8:])
 }
 
 func (wsr *WriteStatRequest) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 0, 2+4+2+64)
-	b = nwriteTag(b, wsr.Tag)
-	b = nwriteFid(b, wsr.Fid)
 	x, err := wsr.Stat.MarshalBinary()
 	if err != nil {
 		return nil, err
 	}
-	b = nwriteUint16(b, uint16(len(x)))
-	b = append(b, x...)
+
+	b := make([]byte, 2+4+2+len(x))
+	binary.LittleEndian.PutUint16(b[0:2], uint16(wsr.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(wsr.Fid))
+	binary.LittleEndian.PutUint16(b[6:8], uint16(len(x)))
+	copy(b[8:], x)
 	return b, nil
 }
 
@@ -1317,16 +1312,15 @@ func (*WriteStatResponse) EncodedLength() int {
 }
 
 func (wsr *WriteStatResponse) UnmarshalBinary(b []byte) error {
-	var err error
-	idx := 0
-	if wsr.Tag, idx, err = nreadTag(b, idx); err != nil {
-		return err
+	if len(b) < 2 {
+		return ErrPayloadTooShort
 	}
+	wsr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
 	return nil
 }
 
 func (wsr *WriteStatResponse) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 0, 2)
-	b = nwriteTag(b, wsr.Tag)
+	b := make([]byte, 2)
+	binary.LittleEndian.PutUint16(b[0:2], uint16(wsr.Tag))
 	return b, nil
 }
