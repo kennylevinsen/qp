@@ -320,7 +320,10 @@ func TestReencode(t *testing.T) {
 	}
 }
 
-var benchVar Message
+var (
+	benchVar1 Message
+	benchVar2 []byte
+)
 
 func BenchmarkReencodeAll(b *testing.B) {
 	var m Message
@@ -333,11 +336,11 @@ func BenchmarkReencodeAll(b *testing.B) {
 			}
 		}
 	}
-	benchVar = m
+	benchVar1 = m
 }
 
-func BenchmarkReencodeSingle(b *testing.B) {
-	var m Message
+func BenchmarkEncodeSingle(b *testing.B) {
+	var bb []byte
 	input := &WriteStatRequest{
 		Tag:  45,
 		Fid:  134325,
@@ -346,7 +349,17 @@ func BenchmarkReencodeSingle(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		buf := new(bytes.Buffer)
 		NineP2000.Encode(buf, input)
-		m, _ = NineP2000.Decode(buf)
+		bb = buf.Bytes()
 	}
-	benchVar = m
+	benchVar2 = bb
+}
+
+func BenchmarkDecodeSingle(b *testing.B) {
+	var m Message
+	input := []byte{0x3e, 0x0, 0x0, 0x0, 0x7e, 0x2d, 0x0, 0x76, 0x53, 0xbc, 0x0, 0x31, 0x0, 0x2f, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}
+
+	for n := 0; n < b.N; n++ {
+		m, _ = NineP2000.Decode(bytes.NewReader(input))
+	}
+	benchVar1 = m
 }
