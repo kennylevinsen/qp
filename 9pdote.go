@@ -31,19 +31,9 @@ type SessionRequestDote struct {
 	Key [8]byte
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (sr *SessionRequestDote) EncodedLength() int {
-	return 2 + 8
-}
-
 // SessionResponseDote is used to indicate a successful session restore.
 type SessionResponseDote struct {
 	Tag
-}
-
-// EncodedLength returns the length the message will be when serialized.
-func (sr *SessionResponseDote) EncodedLength() int {
-	return 2
 }
 
 // SimpleReadRequestDote is used to quickly read a file. The request is
@@ -59,25 +49,11 @@ type SimpleReadRequestDote struct {
 	Names []string
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (srr *SimpleReadRequestDote) EncodedLength() int {
-	x := 0
-	for i := range srr.Names {
-		x += 2 + len(srr.Names[i])
-	}
-	return 2 + 4 + 2 + x
-}
-
 // SimpleReadResponseDote is used to return the read data.
 type SimpleReadResponseDote struct {
 	Tag
 
 	Data []byte
-}
-
-// EncodedLength returns the length the message will be when serialized.
-func (srr *SimpleReadResponseDote) EncodedLength() int {
-	return 2 + 4 + len(srr.Data)
 }
 
 // SimpleWriteRequestDote is used to quickly create a file if it doesn't
@@ -97,23 +73,9 @@ type SimpleWriteRequestDote struct {
 	Data []byte
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (swr *SimpleWriteRequestDote) EncodedLength() int {
-	x := 0
-	for i := range swr.Names {
-		x += 2 + len(swr.Names[i])
-	}
-	return 2 + 4 + 2 + x + 4 + len(swr.Data)
-}
-
 // SimpleWriteResponseDote is used to inform of how much data was written.
 type SimpleWriteResponseDote struct {
 	Tag
 
 	Count uint32
-}
-
-// EncodedLength returns the length the message will be when serialized.
-func (swr *SimpleWriteResponseDote) EncodedLength() int {
-	return 2 + 4
 }

@@ -26,7 +26,6 @@ type MessageType byte
 // message tag, which is merely a convenience feature to save a type assert
 // for access to the tag.
 type Message interface {
-	EncodedLength() int
 	GetTag() Tag
 }
 

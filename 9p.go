@@ -87,11 +87,6 @@ type Qid struct {
 	Path uint64
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (*Qid) EncodedLength() int {
-	return 13
-}
-
 func (q *Qid) UnmarshalBinary(b []byte) error {
 	var err error
 	idx := 0
@@ -150,11 +145,6 @@ type Stat struct {
 
 	// MUID is the user who last modified the file.
 	MUID string
-}
-
-// EncodedLength returns the length the message will be when serialized.
-func (s *Stat) EncodedLength() int {
-	return 2 + 2 + 4 + 13 + 4 + 4 + 4 + 8 + 8 + len(s.Name) + len(s.UID) + len(s.GID) + len(s.MUID)
 }
 
 func (s *Stat) UnmarshalBinary(b []byte) error {
@@ -240,34 +230,6 @@ type VersionRequest struct {
 	Version string
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (vr *VersionRequest) EncodedLength() int {
-	return 2 + 4 + 2 + len(vr.Version)
-}
-
-func (vr *VersionRequest) UnmarshalBinary(b []byte) error {
-	var err error
-	idx := 0
-	if vr.Tag, idx, err = nreadTag(b, idx); err != nil {
-		return err
-	}
-	if vr.MaxSize, idx, err = nreadUint32(b, idx); err != nil {
-		return err
-	}
-	if vr.Version, idx, err = nreadString(b, idx); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (vr *VersionRequest) MarshalBinary() ([]byte, error) {
-	var b []byte
-	b = nwriteTag(b, vr.Tag)
-	b = nwriteUint32(b, vr.MaxSize)
-	b = nwriteString(b, vr.Version)
-	return b, nil
-}
-
 // VersionResponse is used to inform the client of maximum size and version,
 // taking the clients VersionRequest into consideration. MaxSize in the reply
 // must not be larger than MaxSize in the request, and the version must
@@ -283,11 +245,6 @@ type VersionResponse struct {
 	// Version is the negotiated protocol version, or "unknown" if negotiation
 	// failed.
 	Version string
-}
-
-// EncodedLength returns the length the message will be when serialized.
-func (vr *VersionResponse) EncodedLength() int {
-	return 2 + 4 + 2 + len(vr.Version)
 }
 
 // AuthRequest is used to request and authentication protocol connection from
@@ -309,11 +266,6 @@ type AuthRequest struct {
 	Service string
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (ar *AuthRequest) EncodedLength() int {
-	return 2 + 4 + 2 + len(ar.Username) + 2 + len(ar.Service)
-}
-
 // AuthResponse is used to acknowledge the authentication protocol connection,
 // and to return the matching Qid.
 type AuthResponse struct {
@@ -322,11 +274,6 @@ type AuthResponse struct {
 	// AuthQid is the Qid representing the special authentication file. This
 	// field is called "aqid" in the official implementation.
 	AuthQid Qid
-}
-
-// EncodedLength returns the length the message will be when serialized.
-func (*AuthResponse) EncodedLength() int {
-	return 2 + 13
 }
 
 // AttachRequest is used to establish a connection to a service as a user, and
@@ -351,22 +298,12 @@ type AttachRequest struct {
 	Service string
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (ar *AttachRequest) EncodedLength() int {
-	return 2 + 4 + 4 + 2 + len(ar.Username) + 2 + len(ar.Service)
-}
-
 // AttachResponse acknowledges an attach.
 type AttachResponse struct {
 	Tag
 
 	// Qid is the qid of the root node.
 	Qid Qid
-}
-
-// EncodedLength returns the length the message will be when serialized.
-func (*AttachResponse) EncodedLength() int {
-	return 2 + 13
 }
 
 // ErrorResponse is used when the server wants to report and error with the
@@ -379,11 +316,6 @@ type ErrorResponse struct {
 	Error string
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (er *ErrorResponse) EncodedLength() int {
-	return 2 + 2 + len(er.Error)
-}
-
 // FlushRequest is used to cancel a pending request. The flushed tag can be
 // used after a response have been received.
 type FlushRequest struct {
@@ -393,20 +325,10 @@ type FlushRequest struct {
 	OldTag Tag
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (*FlushRequest) EncodedLength() int {
-	return 2 + 2
-}
-
 // FlushResponse is used to indicate a successful flush. Do note that
 // FlushResponse have a peculiar behaviour when multiple flushes are pending.
 type FlushResponse struct {
 	Tag
-}
-
-// EncodedLength returns the length the message will be when serialized.
-func (*FlushResponse) EncodedLength() int {
-	return 2
 }
 
 // WalkRequest is used to walk into directories, starting from the current fid.
@@ -425,15 +347,6 @@ type WalkRequest struct {
 	Names []string
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (wr *WalkRequest) EncodedLength() int {
-	x := 0
-	for i := range wr.Names {
-		x += 2 + len(wr.Names[i])
-	}
-	return 2 + 4 + 4 + 2 + x
-}
-
 // WalkResponse returns the qids for each successfully walked element. If the
 // walk is successful, the amount of qids will be identical to the amount of
 // names.
@@ -442,11 +355,6 @@ type WalkResponse struct {
 
 	// Qids are the qids for the successfully walked files.
 	Qids []Qid
-}
-
-// EncodedLength returns the length the message will be when serialized.
-func (wr *WalkResponse) EncodedLength() int {
-	return 2 + 2 + 13*len(wr.Qids)
 }
 
 // OpenRequest is used to open a fid for reading/writing/executing.
@@ -458,11 +366,6 @@ type OpenRequest struct {
 
 	// Mode is the mode to open file under.
 	Mode OpenMode
-}
-
-// EncodedLength returns the length the message will be when serialized.
-func (*OpenRequest) EncodedLength() int {
-	return 2 + 4 + 1
 }
 
 // OpenResponse returns the qid of the file, as well as iounit, which is a
@@ -477,11 +380,6 @@ type OpenResponse struct {
 	// IOUnit is the maximum amount of data that can be read/written by a single
 	// call, or 0 for no specification.
 	IOUnit uint32
-}
-
-// EncodedLength returns the length the message will be when serialized.
-func (*OpenResponse) EncodedLength() int {
-	return 2 + 13 + 4
 }
 
 // CreateRequest tries to create a file in the current directory with the
@@ -505,11 +403,6 @@ type CreateRequest struct {
 	Mode OpenMode
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (cr *CreateRequest) EncodedLength() int {
-	return 2 + 4 + 2 + len(cr.Name) + 4 + 1
-}
-
 // CreateResponse returns the qid of the file, as well as iounit, which is a
 // read/write size that is guaranteed to be sucessfully written/read, or 0 for
 // no such guarantee.
@@ -522,11 +415,6 @@ type CreateResponse struct {
 	// IOUnit is the maximum amount of data that can be read/written by a single
 	// call, or 0 for no specification.
 	IOUnit uint32
-}
-
-// EncodedLength returns the length the message will be when serialized.
-func (*CreateResponse) EncodedLength() int {
-	return 2 + 13 + 4
 }
 
 // ReadRequest is used to read data from an open file.
@@ -543,22 +431,12 @@ type ReadRequest struct {
 	Count uint32
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (*ReadRequest) EncodedLength() int {
-	return 2 + 4 + 8 + 4
-}
-
 // ReadResponse  is used to return the read data.
 type ReadResponse struct {
 	Tag
 
 	// Data is the data that was read.
 	Data []byte
-}
-
-// EncodedLength returns the length the message will be when serialized.
-func (rr *ReadResponse) EncodedLength() int {
-	return 2 + 4 + len(rr.Data)
 }
 
 // WriteRequest is used to write to an open file.
@@ -575,22 +453,12 @@ type WriteRequest struct {
 	Data []byte
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (wr *WriteRequest) EncodedLength() int {
-	return 2 + 4 + 8 + 4 + len(wr.Data)
-}
-
 // WriteResponse is used to inform of how much data was written.
 type WriteResponse struct {
 	Tag
 
 	// Count is the amount of written data.
 	Count uint32
-}
-
-// EncodedLength returns the length the message will be when serialized.
-func (*WriteResponse) EncodedLength() int {
-	return 2 + 4
 }
 
 // ClunkRequest is used to clear a fid, allowing it to be reused.
@@ -601,19 +469,9 @@ type ClunkRequest struct {
 	Fid Fid
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (*ClunkRequest) EncodedLength() int {
-	return 2 + 4
-}
-
 // ClunkResponse indicates a successful clunk.
 type ClunkResponse struct {
 	Tag
-}
-
-// EncodedLength returns the length the message will be when serialized.
-func (*ClunkResponse) EncodedLength() int {
-	return 2
 }
 
 // RemoveRequest is used to clunk a fid and remove the file if possible.
@@ -624,19 +482,9 @@ type RemoveRequest struct {
 	Fid Fid
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (*RemoveRequest) EncodedLength() int {
-	return 2 + 4
-}
-
 // RemoveResponse indicates a successful clunk, but not necessarily a successful remove.
 type RemoveResponse struct {
 	Tag
-}
-
-// EncodedLength returns the length the message will be when serialized.
-func (*RemoveResponse) EncodedLength() int {
-	return 2
 }
 
 // StatRequest is used to retrieve the Stat struct of a file
@@ -647,22 +495,12 @@ type StatRequest struct {
 	Fid Fid
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (*StatRequest) EncodedLength() int {
-	return 2 + 4
-}
-
 // StatResponse contains the Stat struct of a file.
 type StatResponse struct {
 	Tag
 
 	// Stat is the requested Stat struct.
 	Stat Stat
-}
-
-// EncodedLength returns the length the message will be when serialized.
-func (sr *StatResponse) EncodedLength() int {
-	return 2 + 2 + sr.Stat.EncodedLength()
 }
 
 // WriteStatRequest attempts to apply a Stat struct to a file. This requires a
@@ -683,17 +521,7 @@ type WriteStatRequest struct {
 	Stat Stat
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (wsr *WriteStatRequest) EncodedLength() int {
-	return 2 + 4 + 2 + wsr.Stat.EncodedLength()
-}
-
 // WriteStatResponse indicates a successful application of a Stat structure.
 type WriteStatResponse struct {
 	Tag
-}
-
-// EncodedLength returns the length the message will be when serialized.
-func (*WriteStatResponse) EncodedLength() int {
-	return 2
 }

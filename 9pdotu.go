@@ -80,11 +80,6 @@ type StatDotu struct {
 	MUIDno uint32
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (s *StatDotu) EncodedLength() int {
-	return 2 + 2 + 4 + 13 + 4 + 4 + 4 + 8 + 8 + len(s.Name) + len(s.UID) + len(s.GID) + len(s.MUID) + 2 + len(s.Extensions) + 4 + 4 + 4
-}
-
 // AuthRequestDotu is the 9P2000.u version of AuthRequestDotu. It adds UIDno,
 // for compatibility with platforms that use numeric user IDs. UIDno takes
 // precedence over Username.
@@ -102,11 +97,6 @@ type AuthRequestDotu struct {
 
 	// UIDno is a UID number for platforms using numeric user IDs.
 	UIDno uint32
-}
-
-// EncodedLength returns the length the message will be when serialized.
-func (ar *AuthRequestDotu) EncodedLength() int {
-	return 2 + 4 + 2 + len(ar.Username) + 2 + len(ar.Service) + 4
 }
 
 // AttachRequestDotu is the 9P2000.u version of AttachRequestDotu. It adds
@@ -132,11 +122,6 @@ type AttachRequestDotu struct {
 	UIDno uint32
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (ar *AttachRequestDotu) EncodedLength() int {
-	return 2 + 4 + 4 + 2 + len(ar.Username) + 2 + len(ar.Service) + 4
-}
-
 // ErrorResponseDotu is the 9P2000.u version of ErrorResponse. It adds Errno
 // in an attempt to improve compatibility with platforms that use numeric
 // errors. Errno takes precedence over Error.
@@ -148,11 +133,6 @@ type ErrorResponseDotu struct {
 
 	// Errno is the error code.
 	Errno uint32
-}
-
-// EncodedLength returns the length the message will be when serialized.
-func (er *ErrorResponseDotu) EncodedLength() int {
-	return 2 + 2 + len(er.Error) + 4
 }
 
 // CreateRequestDotu is the 9P2000.u version of CreateRequest. It adds
@@ -177,11 +157,6 @@ type CreateRequestDotu struct {
 	Extensions string
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (cr *CreateRequestDotu) EncodedLength() int {
-	return 2 + 4 + 2 + len(cr.Name) + 4 + 1 + 2 + len(cr.Extensions)
-}
-
 // StatResponseDotu is the 9P2000.u version of StatResponse. It uses a
 // different stat struct, StatDotu.
 type StatResponseDotu struct {
@@ -189,11 +164,6 @@ type StatResponseDotu struct {
 
 	// Stat is the requested StatDotu struct.
 	Stat StatDotu
-}
-
-// EncodedLength returns the length the message will be when serialized.
-func (sr *StatResponseDotu) EncodedLength() int {
-	return 2 + 2 + sr.Stat.EncodedLength()
 }
 
 // WriteStatRequestDotu is the 9P2000.u version of WriteStatRequest. It uses a
@@ -206,9 +176,4 @@ type WriteStatRequestDotu struct {
 
 	// Stat is the StatDotu struct to apply.
 	Stat StatDotu
-}
-
-// EncodedLength returns the length the message will be when serialized.
-func (wsr *WriteStatRequestDotu) EncodedLength() int {
-	return 2 + 4 + 2 + wsr.Stat.EncodedLength()
 }
