@@ -108,7 +108,7 @@ func (q *Qid) UnmarshalBinary(b []byte) error {
 }
 
 func (q *Qid) MarshalBinary() ([]byte, error) {
-	var b []byte
+	b := make([]byte, 0, 13)
 	b = nwriteQidType(b, q.Type)
 	b = nwriteUint32(b, q.Version)
 	b = nwriteUint64(b, q.Path)
@@ -169,10 +169,15 @@ func (s *Stat) UnmarshalBinary(b []byte) error {
 	if s.Dev, idx, err = nreadUint32(b, idx); err != nil {
 		return err
 	}
-	if err = s.Qid.UnmarshalBinary(b[idx : idx+13]); err != nil {
+	if s.Qid.Type, idx, err = nreadQidType(b, idx); err != nil {
 		return err
 	}
-	idx += 13
+	if s.Qid.Version, idx, err = nreadUint32(b, idx); err != nil {
+		return err
+	}
+	if s.Qid.Path, idx, err = nreadUint64(b, idx); err != nil {
+		return err
+	}
 	if s.Mode, idx, err = nreadFileMode(b, idx); err != nil {
 		return err
 	}
@@ -201,14 +206,14 @@ func (s *Stat) UnmarshalBinary(b []byte) error {
 }
 
 func (s *Stat) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 2)
+	l := 2 + 2 + 4 + 13 + 4 + 4 + 4 + 8 + 8 + len(s.Name) + len(s.UID) + len(s.GID) + len(s.MUID)
+	b := make([]byte, 2, l)
+	binary.LittleEndian.PutUint16(b[0:2], uint16(l-2))
 	b = nwriteUint16(b, s.Type)
 	b = nwriteUint32(b, s.Dev)
-	x, err := s.Qid.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-	b = append(b, x...)
+	b = nwriteQidType(b, s.Qid.Type)
+	b = nwriteUint32(b, s.Qid.Version)
+	b = nwriteUint64(b, s.Qid.Path)
 	b = nwriteFileMode(b, s.Mode)
 	b = nwriteUint32(b, s.Atime)
 	b = nwriteUint32(b, s.Mtime)
@@ -217,7 +222,6 @@ func (s *Stat) MarshalBinary() ([]byte, error) {
 	b = nwriteString(b, s.UID)
 	b = nwriteString(b, s.GID)
 	b = nwriteString(b, s.MUID)
-	binary.LittleEndian.PutUint16(b[0:2], uint16(len(b)-2))
 	return b, nil
 }
 
@@ -261,7 +265,7 @@ func (vr *VersionRequest) UnmarshalBinary(b []byte) error {
 }
 
 func (vr *VersionRequest) MarshalBinary() ([]byte, error) {
-	var b []byte
+	b := make([]byte, 0, 2+4+2+len(vr.Version))
 	b = nwriteTag(b, vr.Tag)
 	b = nwriteUint32(b, vr.MaxSize)
 	b = nwriteString(b, vr.Version)
@@ -306,7 +310,7 @@ func (vr *VersionResponse) UnmarshalBinary(b []byte) error {
 }
 
 func (vr *VersionResponse) MarshalBinary() ([]byte, error) {
-	var b []byte
+	b := make([]byte, 0, 2+4+2+len(vr.Version))
 	b = nwriteTag(b, vr.Tag)
 	b = nwriteUint32(b, vr.MaxSize)
 	b = nwriteString(b, vr.Version)
@@ -356,7 +360,7 @@ func (ar *AuthRequest) UnmarshalBinary(b []byte) error {
 }
 
 func (ar *AuthRequest) MarshalBinary() ([]byte, error) {
-	var b []byte
+	b := make([]byte, 0, 2+4+2+len(ar.Username)+2+len(ar.Service))
 	b = nwriteTag(b, ar.Tag)
 	b = nwriteFid(b, ar.AuthFid)
 	b = nwriteString(b, ar.Username)
@@ -392,7 +396,7 @@ func (ar *AuthResponse) UnmarshalBinary(b []byte) error {
 }
 
 func (ar *AuthResponse) MarshalBinary() ([]byte, error) {
-	var b []byte
+	b := make([]byte, 0, 2+13)
 	b = nwriteTag(b, ar.Tag)
 	x, err := ar.AuthQid.MarshalBinary()
 	if err != nil {
@@ -451,7 +455,7 @@ func (ar *AttachRequest) UnmarshalBinary(b []byte) error {
 }
 
 func (ar *AttachRequest) MarshalBinary() ([]byte, error) {
-	var b []byte
+	b := make([]byte, 0, 2+4+4+2+len(ar.Username)+2+len(ar.Service))
 	b = nwriteTag(b, ar.Tag)
 	b = nwriteFid(b, ar.Fid)
 	b = nwriteFid(b, ar.AuthFid)
@@ -486,7 +490,7 @@ func (ar *AttachResponse) UnmarshalBinary(b []byte) error {
 }
 
 func (ar *AttachResponse) MarshalBinary() ([]byte, error) {
-	var b []byte
+	b := make([]byte, 0, 2+13)
 	b = nwriteTag(b, ar.Tag)
 	x, err := ar.Qid.MarshalBinary()
 	if err != nil {
@@ -524,7 +528,7 @@ func (er *ErrorResponse) UnmarshalBinary(b []byte) error {
 }
 
 func (er *ErrorResponse) MarshalBinary() ([]byte, error) {
-	var b []byte
+	b := make([]byte, 0, 2+2+len(er.Error))
 	b = nwriteTag(b, er.Tag)
 	b = nwriteString(b, er.Error)
 	return b, nil
@@ -557,7 +561,7 @@ func (fr *FlushRequest) UnmarshalBinary(b []byte) error {
 }
 
 func (fr *FlushRequest) MarshalBinary() ([]byte, error) {
-	var b []byte
+	b := make([]byte, 0, 2+2)
 	b = nwriteTag(b, fr.Tag)
 	b = nwriteTag(b, fr.OldTag)
 	return b, nil
@@ -584,7 +588,7 @@ func (fr *FlushResponse) UnmarshalBinary(b []byte) error {
 }
 
 func (fr *FlushResponse) MarshalBinary() ([]byte, error) {
-	var b []byte
+	b := make([]byte, 0, 2)
 	b = nwriteTag(b, fr.Tag)
 	return b, nil
 }
@@ -640,7 +644,7 @@ func (wr *WalkRequest) UnmarshalBinary(b []byte) error {
 }
 
 func (wr *WalkRequest) MarshalBinary() ([]byte, error) {
-	var b []byte
+	b := make([]byte, 0, 2+4+4+2+64)
 	b = nwriteTag(b, wr.Tag)
 	b = nwriteFid(b, wr.Fid)
 	b = nwriteFid(b, wr.NewFid)
@@ -687,7 +691,7 @@ func (wr *WalkResponse) UnmarshalBinary(b []byte) error {
 }
 
 func (wr *WalkResponse) MarshalBinary() ([]byte, error) {
-	var b []byte
+	b := make([]byte, 0, 2+2+13*len(wr.Qids))
 	b = nwriteTag(b, wr.Tag)
 	b = nwriteUint16(b, uint16(len(wr.Qids)))
 	for i := range wr.Qids {
@@ -732,7 +736,7 @@ func (or *OpenRequest) UnmarshalBinary(b []byte) error {
 }
 
 func (or *OpenRequest) MarshalBinary() ([]byte, error) {
-	var b []byte
+	b := make([]byte, 0, 2+4+1)
 	b = nwriteTag(b, or.Tag)
 	b = nwriteFid(b, or.Fid)
 	b = nwriteOpenMode(b, or.Mode)
@@ -775,7 +779,7 @@ func (or *OpenResponse) UnmarshalBinary(b []byte) error {
 }
 
 func (or *OpenResponse) MarshalBinary() ([]byte, error) {
-	var b []byte
+	b := make([]byte, 0, 2+13+4)
 	b = nwriteTag(b, or.Tag)
 	x, err := or.Qid.MarshalBinary()
 	if err != nil {
@@ -834,7 +838,7 @@ func (cr *CreateRequest) UnmarshalBinary(b []byte) error {
 }
 
 func (cr *CreateRequest) MarshalBinary() ([]byte, error) {
-	var b []byte
+	b := make([]byte, 0, 2+4+2+len(cr.Name)+4+1)
 	b = nwriteTag(b, cr.Tag)
 	b = nwriteFid(b, cr.Fid)
 	b = nwriteString(b, cr.Name)
@@ -879,7 +883,7 @@ func (cr *CreateResponse) UnmarshalBinary(b []byte) error {
 }
 
 func (cr *CreateResponse) MarshalBinary() ([]byte, error) {
-	var b []byte
+	b := make([]byte, 0, 2+13+4)
 	b = nwriteTag(b, cr.Tag)
 	x, err := cr.Qid.MarshalBinary()
 	if err != nil {
@@ -928,7 +932,7 @@ func (rr *ReadRequest) UnmarshalBinary(b []byte) error {
 }
 
 func (rr *ReadRequest) MarshalBinary() ([]byte, error) {
-	var b []byte
+	b := make([]byte, 0, 2+4+8+4)
 	b = nwriteTag(b, rr.Tag)
 	b = nwriteFid(b, rr.Fid)
 	b = nwriteUint64(b, rr.Offset)
@@ -968,7 +972,7 @@ func (rr *ReadResponse) UnmarshalBinary(b []byte) error {
 }
 
 func (rr *ReadResponse) MarshalBinary() ([]byte, error) {
-	var b []byte
+	b := make([]byte, 0, 2+4+len(rr.Data))
 	b = nwriteTag(b, rr.Tag)
 	b = nwriteUint32(b, uint32(len(rr.Data)))
 	b = append(b, rr.Data...)
@@ -1019,7 +1023,7 @@ func (wr *WriteRequest) UnmarshalBinary(b []byte) error {
 }
 
 func (wr *WriteRequest) MarshalBinary() ([]byte, error) {
-	var b []byte
+	b := make([]byte, 0, 2+4+8+4+len(wr.Data))
 	b = nwriteTag(b, wr.Tag)
 	b = nwriteFid(b, wr.Fid)
 	b = nwriteUint64(b, wr.Offset)
@@ -1086,7 +1090,7 @@ func (cr *ClunkRequest) UnmarshalBinary(b []byte) error {
 }
 
 func (cr *ClunkRequest) MarshalBinary() ([]byte, error) {
-	var b []byte
+	b := make([]byte, 0, 2+4)
 	b = nwriteTag(b, cr.Tag)
 	b = nwriteFid(b, cr.Fid)
 	return b, nil
@@ -1112,7 +1116,7 @@ func (cr *ClunkResponse) UnmarshalBinary(b []byte) error {
 }
 
 func (cr *ClunkResponse) MarshalBinary() ([]byte, error) {
-	var b []byte
+	b := make([]byte, 0, 2)
 	b = nwriteTag(b, cr.Tag)
 	return b, nil
 }
@@ -1143,7 +1147,7 @@ func (rr *RemoveRequest) UnmarshalBinary(b []byte) error {
 }
 
 func (rr *RemoveRequest) MarshalBinary() ([]byte, error) {
-	var b []byte
+	b := make([]byte, 0, 2+4)
 	b = nwriteTag(b, rr.Tag)
 	b = nwriteFid(b, rr.Fid)
 	return b, nil
@@ -1169,7 +1173,7 @@ func (rr *RemoveResponse) UnmarshalBinary(b []byte) error {
 }
 
 func (rr *RemoveResponse) MarshalBinary() ([]byte, error) {
-	var b []byte
+	b := make([]byte, 0, 2)
 	b = nwriteTag(b, rr.Tag)
 	return b, nil
 }
@@ -1200,7 +1204,7 @@ func (sr *StatRequest) UnmarshalBinary(b []byte) error {
 }
 
 func (sr *StatRequest) MarshalBinary() ([]byte, error) {
-	var b []byte
+	b := make([]byte, 0, 2+4)
 	b = nwriteTag(b, sr.Tag)
 	b = nwriteFid(b, sr.Fid)
 	return b, nil
@@ -1236,7 +1240,7 @@ func (sr *StatResponse) UnmarshalBinary(b []byte) error {
 }
 
 func (sr *StatResponse) MarshalBinary() ([]byte, error) {
-	var b []byte
+	b := make([]byte, 0, 2+2+64)
 	b = nwriteTag(b, sr.Tag)
 	x, err := sr.Stat.MarshalBinary()
 	if err != nil {
@@ -1290,7 +1294,7 @@ func (wsr *WriteStatRequest) UnmarshalBinary(b []byte) error {
 }
 
 func (wsr *WriteStatRequest) MarshalBinary() ([]byte, error) {
-	var b []byte
+	b := make([]byte, 0, 2+4+2+64)
 	b = nwriteTag(b, wsr.Tag)
 	b = nwriteFid(b, wsr.Fid)
 	x, err := wsr.Stat.MarshalBinary()
@@ -1322,7 +1326,7 @@ func (wsr *WriteStatResponse) UnmarshalBinary(b []byte) error {
 }
 
 func (wsr *WriteStatResponse) MarshalBinary() ([]byte, error) {
-	var b []byte
+	b := make([]byte, 0, 2)
 	b = nwriteTag(b, wsr.Tag)
 	return b, nil
 }
