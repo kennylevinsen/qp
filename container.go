@@ -1,11 +1,12 @@
 package qp
 
 import (
-	"encoding/binary"
+	"encoding"
 	"errors"
 	"fmt"
 	"io"
 	"reflect"
+	"strconv"
 )
 
 // Default is the protocol used by the raw Encode and Decode functions.
@@ -56,7 +57,7 @@ type Codec struct {
 	MT2M func(MessageType) (Message, error)
 }
 
-func decipherQid(b []byte, idx int) (Qid, int, error) {
+func decodeQid(b []byte, idx int) (Qid, int, error) {
 	var err error
 	q := Qid{}
 	if q.Type, idx, err = nreadQidType(b, idx); err != nil {
@@ -71,49 +72,6 @@ func decipherQid(b []byte, idx int) (Qid, int, error) {
 	return q, idx, nil
 }
 
-func decipherStat(b []byte, idx int) (Stat, int, error) {
-	var err error
-	s := Stat{}
-	if _, idx, err = nreadUint16(b, idx); err != nil {
-		return s, idx, err
-	}
-	if s.Type, idx, err = nreadUint16(b, idx); err != nil {
-		return s, idx, err
-	}
-	if s.Dev, idx, err = nreadUint32(b, idx); err != nil {
-		return s, idx, err
-	}
-	if err = s.Qid.UnmarshalBinary(b[idx : idx+13]); err != nil {
-		return s, idx, err
-	}
-	idx += 13
-	if s.Mode, idx, err = nreadFileMode(b, idx); err != nil {
-		return s, idx, err
-	}
-	if s.Atime, idx, err = nreadUint32(b, idx); err != nil {
-		return s, idx, err
-	}
-	if s.Mtime, idx, err = nreadUint32(b, idx); err != nil {
-		return s, idx, err
-	}
-	if s.Length, idx, err = nreadUint64(b, idx); err != nil {
-		return s, idx, err
-	}
-	if s.Name, idx, err = nreadString(b, idx); err != nil {
-		return s, idx, err
-	}
-	if s.UID, idx, err = nreadString(b, idx); err != nil {
-		return s, idx, err
-	}
-	if s.GID, idx, err = nreadString(b, idx); err != nil {
-		return s, idx, err
-	}
-	if s.MUID, idx, err = nreadString(b, idx); err != nil {
-		return s, idx, err
-	}
-	return s, idx, nil
-}
-
 func decode(b []byte, m interface{}) error {
 	var err error
 	v := reflect.ValueOf(m)
@@ -122,6 +80,7 @@ func decode(b []byte, m interface{}) error {
 	case reflect.Interface, reflect.Ptr:
 		v = v.Elem()
 	}
+	t := v.Type()
 	n := v.NumField()
 	idx := 0
 	for i := 0; i < n; i++ {
@@ -190,24 +149,6 @@ func decode(b []byte, m interface{}) error {
 				return err
 			}
 			f.Set(reflect.ValueOf(x))
-		case Qid:
-			var x Qid
-			x, idx, err = decipherQid(b, idx)
-			if err != nil {
-				return err
-			}
-			f.Set(reflect.ValueOf(x))
-		case Stat:
-			_, idx, err = nreadUint16(b, idx)
-			if err != nil {
-				return err
-			}
-			var x Stat
-			x, idx, err = decipherStat(b, idx)
-			if err != nil {
-				return err
-			}
-			f.Set(reflect.ValueOf(x))
 		case []byte:
 			var l uint32
 			l, idx, err = nreadUint32(b, idx)
@@ -243,15 +184,77 @@ func decode(b []byte, m interface{}) error {
 			x := make([]Qid, l)
 			for i := 0; i < int(l); i++ {
 				var q Qid
-				q, idx, err = decipherQid(b, idx)
+				q, idx, err = decodeQid(b, idx)
 				if err != nil {
 					return err
 				}
 				x[i] = q
 			}
 			f.Set(reflect.ValueOf(x))
+		case [8]uint8:
+			var x [8]uint8
+			copy(x[:], b[idx:idx+8])
+			idx += 8
+			f.Set(reflect.ValueOf(x))
 		default:
-			return fmt.Errorf("unknown field type: %T", f.Interface())
+			// BEHOLD: HERE LIES DRAGONS
+			k := f.Kind()
+			if k != reflect.Interface && k != reflect.Ptr {
+				f = f.Addr()
+			}
+
+			ft := t.Field(i)
+			x, ok := f.Interface().(encoding.BinaryUnmarshaler)
+			if !ok {
+				return fmt.Errorf("unknown field type: %T", f.Interface())
+			}
+
+			var ll uint64
+			tag := ft.Tag.Get("len")
+			switch tag {
+			case "uint8":
+				var l uint8
+				l, idx, err = nreadByte(b, idx)
+				if err != nil {
+					return err
+				}
+				ll = uint64(l)
+			case "uint16":
+				var l uint16
+				l, idx, err = nreadUint16(b, idx)
+				if err != nil {
+					return err
+				}
+				ll = uint64(l)
+			case "uint32":
+				var l uint32
+				l, idx, err = nreadUint32(b, idx)
+				if err != nil {
+					return err
+				}
+				ll = uint64(l)
+			case "uint64":
+				var l uint64
+				l, idx, err = nreadUint64(b, idx)
+				if err != nil {
+					return err
+				}
+				ll = uint64(l)
+			default:
+				if tag == "" {
+					return fmt.Errorf("unknown field type: %T", f.Interface())
+				}
+				ll, err = strconv.ParseUint(tag, 10, 64)
+				if err != nil {
+					return err
+				}
+			}
+
+			err = x.UnmarshalBinary(b[idx : idx+int(ll)])
+			if err != nil {
+				return err
+			}
+			idx += int(ll)
 		}
 	}
 	return nil
@@ -264,31 +267,13 @@ func encodeQid(b []byte, q Qid) []byte {
 	return b
 }
 
-func encodeStat(b []byte, s Stat) []byte {
-	l := len(b)
-	b = append(b, []byte{0, 0}...)
-	b = nwriteUint16(b, s.Type)
-	b = nwriteUint32(b, s.Dev)
-	b = encodeQid(b, s.Qid)
-	b = nwriteFileMode(b, s.Mode)
-	b = nwriteUint32(b, s.Atime)
-	b = nwriteUint32(b, s.Mtime)
-	b = nwriteUint64(b, s.Length)
-	b = nwriteString(b, s.Name)
-	b = nwriteString(b, s.UID)
-	b = nwriteString(b, s.GID)
-	b = nwriteString(b, s.MUID)
-	binary.LittleEndian.PutUint16(b[l:l+2], uint16(len(b)-l-2))
-	return b
-}
-
 func encode(m interface{}) ([]byte, error) {
 	v := reflect.ValueOf(m)
-	k := v.Kind()
-	switch k {
+	switch v.Kind() {
 	case reflect.Interface, reflect.Ptr:
 		v = v.Elem()
 	}
+	t := v.Type()
 	n := v.NumField()
 	var b []byte
 	for i := 0; i < n; i++ {
@@ -314,14 +299,6 @@ func encode(m interface{}) ([]byte, error) {
 			b = nwriteString(b, fv)
 		case Qid:
 			b = encodeQid(b, fv)
-		case Stat, StatDotu:
-			x, err := encode(fv)
-			if err != nil {
-				return nil, err
-			}
-			b = nwriteUint16(b, uint16(len(x)+2))
-			b = nwriteUint16(b, uint16(len(x)))
-			b = append(b, x...)
 		case []byte:
 			b = nwriteUint32(b, uint32(len(fv)))
 			b = append(b, fv...)
@@ -335,8 +312,39 @@ func encode(m interface{}) ([]byte, error) {
 			for i := range fv {
 				b = encodeQid(b, fv[i])
 			}
+		case [8]uint8:
+			b = append(b, fv[:]...)
 		default:
-			return nil, fmt.Errorf("unknown field type: %T", fv)
+			// BEHOLD: HERE LIES DRAGONS
+			k := f.Kind()
+			if k == reflect.Struct {
+				f = f.Addr()
+			}
+
+			ft := t.Field(i)
+			x, ok := f.Interface().(encoding.BinaryMarshaler)
+			if !ok {
+				return nil, fmt.Errorf("unknown field type: %T", fv)
+			}
+			y, err := x.MarshalBinary()
+			if err != nil {
+				return nil, err
+			}
+
+			tag := ft.Tag.Get("len")
+			switch tag {
+			case "uint8":
+				b = nwriteByte(b, uint8(len(y)))
+			case "uint16":
+				b = nwriteUint16(b, uint16(len(y)))
+			case "uint32":
+				b = nwriteUint32(b, uint32(len(y)))
+			case "uint64":
+				b = nwriteUint64(b, uint64(len(y)))
+			case "":
+				return nil, fmt.Errorf("field of type %T missing len", fv)
+			}
+			b = append(b, y...)
 		}
 	}
 	return b, nil

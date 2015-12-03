@@ -273,7 +273,7 @@ type AuthResponse struct {
 
 	// AuthQid is the Qid representing the special authentication file. This
 	// field is called "aqid" in the official implementation.
-	AuthQid Qid
+	AuthQid Qid `len:"13"`
 }
 
 // AttachRequest is used to establish a connection to a service as a user, and
@@ -303,7 +303,7 @@ type AttachResponse struct {
 	Tag
 
 	// Qid is the qid of the root node.
-	Qid Qid
+	Qid Qid `len:"13"`
 }
 
 // ErrorResponse is used when the server wants to report and error with the
@@ -375,7 +375,7 @@ type OpenResponse struct {
 	Tag
 
 	// Qid is the qid of the opened file.
-	Qid Qid
+	Qid Qid `len:"13"`
 
 	// IOUnit is the maximum amount of data that can be read/written by a single
 	// call, or 0 for no specification.
@@ -410,7 +410,7 @@ type CreateResponse struct {
 	Tag
 
 	// Qid is the qid of the opened file.
-	Qid Qid
+	Qid Qid `len:"13"`
 
 	// IOUnit is the maximum amount of data that can be read/written by a single
 	// call, or 0 for no specification.
@@ -500,7 +500,7 @@ type StatResponse struct {
 	Tag
 
 	// Stat is the requested Stat struct.
-	Stat Stat
+	Stat Stat `len:"uint16"`
 }
 
 // WriteStatRequest attempts to apply a Stat struct to a file. This requires a
@@ -518,7 +518,7 @@ type WriteStatRequest struct {
 	Fid Fid
 
 	// Stat is the Stat struct to apply.
-	Stat Stat
+	Stat Stat `len:"uint16"`
 }
 
 // WriteStatResponse indicates a successful application of a Stat structure.

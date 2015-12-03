@@ -1,5 +1,7 @@
 package qp
 
+import "encoding/binary"
+
 // NineP2000Dotu implements 9P2000.u encoding and decoding. 9P2000.u is meant
 // as a unix compatibility extension. 9P is designed for Plan9, and as thus
 // send many things as strings rather than numeric codes, such as user IDs and
@@ -78,6 +80,86 @@ type StatDotu struct {
 
 	// MUIDno is a MUID number for platforms using numeric user IDs.
 	MUIDno uint32
+}
+
+func (s *StatDotu) UnmarshalBinary(b []byte) error {
+	var err error
+	idx := 0
+	if _, idx, err = nreadUint16(b, idx); err != nil {
+		return err
+	}
+	if s.Type, idx, err = nreadUint16(b, idx); err != nil {
+		return err
+	}
+	if s.Dev, idx, err = nreadUint32(b, idx); err != nil {
+		return err
+	}
+	if err = s.Qid.UnmarshalBinary(b[idx : idx+13]); err != nil {
+		return err
+	}
+	idx += 13
+	if s.Mode, idx, err = nreadFileMode(b, idx); err != nil {
+		return err
+	}
+	if s.Atime, idx, err = nreadUint32(b, idx); err != nil {
+		return err
+	}
+	if s.Mtime, idx, err = nreadUint32(b, idx); err != nil {
+		return err
+	}
+	if s.Length, idx, err = nreadUint64(b, idx); err != nil {
+		return err
+	}
+	if s.Name, idx, err = nreadString(b, idx); err != nil {
+		return err
+	}
+	if s.UID, idx, err = nreadString(b, idx); err != nil {
+		return err
+	}
+	if s.GID, idx, err = nreadString(b, idx); err != nil {
+		return err
+	}
+	if s.MUID, idx, err = nreadString(b, idx); err != nil {
+		return err
+	}
+	if s.Extensions, idx, err = nreadString(b, idx); err != nil {
+		return err
+	}
+	if s.UIDno, idx, err = nreadUint32(b, idx); err != nil {
+		return err
+	}
+	if s.GIDno, idx, err = nreadUint32(b, idx); err != nil {
+		return err
+	}
+	if s.MUIDno, idx, err = nreadUint32(b, idx); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *StatDotu) MarshalBinary() ([]byte, error) {
+	b := make([]byte, 2)
+	b = nwriteUint16(b, s.Type)
+	b = nwriteUint32(b, s.Dev)
+	x, err := s.Qid.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+	b = append(b, x...)
+	b = nwriteFileMode(b, s.Mode)
+	b = nwriteUint32(b, s.Atime)
+	b = nwriteUint32(b, s.Mtime)
+	b = nwriteUint64(b, s.Length)
+	b = nwriteString(b, s.Name)
+	b = nwriteString(b, s.UID)
+	b = nwriteString(b, s.GID)
+	b = nwriteString(b, s.MUID)
+	b = nwriteString(b, s.Extensions)
+	b = nwriteUint32(b, s.UIDno)
+	b = nwriteUint32(b, s.GIDno)
+	b = nwriteUint32(b, s.MUIDno)
+	binary.LittleEndian.PutUint16(b[0:2], uint16(len(b)-2))
+	return b, nil
 }
 
 // AuthRequestDotu is the 9P2000.u version of AuthRequestDotu. It adds UIDno,
@@ -163,7 +245,7 @@ type StatResponseDotu struct {
 	Tag
 
 	// Stat is the requested StatDotu struct.
-	Stat StatDotu
+	Stat StatDotu `len:"uint16"`
 }
 
 // WriteStatRequestDotu is the 9P2000.u version of WriteStatRequest. It uses a
@@ -175,5 +257,5 @@ type WriteStatRequestDotu struct {
 	Fid Fid
 
 	// Stat is the StatDotu struct to apply.
-	Stat StatDotu
+	Stat StatDotu `len:"uint16"`
 }
