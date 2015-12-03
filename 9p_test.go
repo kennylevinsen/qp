@@ -315,16 +315,38 @@ func reencode(i int, in codec, reference []byte, t *testing.T, p Protocol) {
 // This test does NOT guarantee proper 9P2000 spec coding, but ensures at least
 // that all codecs are compatible with themselves.
 func TestReencode(t *testing.T) {
-
 	for i, tt := range tests {
 		reencode(i, tt.in, tt.reference, t, NineP2000)
 	}
 }
 
-func BenchmarkReencode(b *testing.B) {
+var benchVar Message
+
+func BenchmarkReencodeAll(b *testing.B) {
+	var m Message
 	for n := 0; n < b.N; n++ {
-		for i, tt := range tests {
-			reencode(i, tt.in, tt.reference, nil, NineP2000)
+		for _, tt := range tests {
+			if m, ok := tt.in.(Message); ok {
+				buf := new(bytes.Buffer)
+				NineP2000.Encode(buf, m)
+				m, _ = NineP2000.Decode(buf)
+			}
 		}
 	}
+	benchVar = m
+}
+
+func BenchmarkReencodeSingle(b *testing.B) {
+	var m Message
+	input := &WriteStatRequest{
+		Tag:  45,
+		Fid:  134325,
+		Stat: Stat{},
+	}
+	for n := 0; n < b.N; n++ {
+		buf := new(bytes.Buffer)
+		NineP2000.Encode(buf, input)
+		m, _ = NineP2000.Decode(buf)
+	}
+	benchVar = m
 }
