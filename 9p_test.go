@@ -12,47 +12,41 @@ type binaryBothWayer interface {
 	encoding.BinaryUnmarshaler
 }
 
-type codec interface {
-	EncodedLength() int
-	encoding.BinaryMarshaler
-	encoding.BinaryUnmarshaler
-}
-
 // Test if the types live up to their interface
 var (
 	_ binaryBothWayer = (*Qid)(nil)
 	_ binaryBothWayer = (*Stat)(nil)
-	_ binaryBothWayer = (*VersionRequest)(nil)
-	_ binaryBothWayer = (*VersionResponse)(nil)
-	_ binaryBothWayer = (*AuthRequest)(nil)
-	_ binaryBothWayer = (*AuthResponse)(nil)
-	_ binaryBothWayer = (*AttachRequest)(nil)
-	_ binaryBothWayer = (*AttachResponse)(nil)
-	_ binaryBothWayer = (*ErrorResponse)(nil)
-	_ binaryBothWayer = (*FlushRequest)(nil)
-	_ binaryBothWayer = (*FlushResponse)(nil)
-	_ binaryBothWayer = (*WalkRequest)(nil)
-	_ binaryBothWayer = (*WalkResponse)(nil)
-	_ binaryBothWayer = (*OpenRequest)(nil)
-	_ binaryBothWayer = (*OpenResponse)(nil)
-	_ binaryBothWayer = (*CreateRequest)(nil)
-	_ binaryBothWayer = (*CreateResponse)(nil)
-	_ binaryBothWayer = (*ReadRequest)(nil)
-	_ binaryBothWayer = (*ReadResponse)(nil)
-	_ binaryBothWayer = (*WriteRequest)(nil)
-	_ binaryBothWayer = (*WriteResponse)(nil)
-	_ binaryBothWayer = (*ClunkRequest)(nil)
-	_ binaryBothWayer = (*ClunkResponse)(nil)
-	_ binaryBothWayer = (*RemoveRequest)(nil)
-	_ binaryBothWayer = (*RemoveResponse)(nil)
-	_ binaryBothWayer = (*StatRequest)(nil)
-	_ binaryBothWayer = (*StatResponse)(nil)
-	_ binaryBothWayer = (*WriteStatRequest)(nil)
-	_ binaryBothWayer = (*WriteStatResponse)(nil)
+	_ Message         = (*VersionRequest)(nil)
+	_ Message         = (*VersionResponse)(nil)
+	_ Message         = (*AuthRequest)(nil)
+	_ Message         = (*AuthResponse)(nil)
+	_ Message         = (*AttachRequest)(nil)
+	_ Message         = (*AttachResponse)(nil)
+	_ Message         = (*ErrorResponse)(nil)
+	_ Message         = (*FlushRequest)(nil)
+	_ Message         = (*FlushResponse)(nil)
+	_ Message         = (*WalkRequest)(nil)
+	_ Message         = (*WalkResponse)(nil)
+	_ Message         = (*OpenRequest)(nil)
+	_ Message         = (*OpenResponse)(nil)
+	_ Message         = (*CreateRequest)(nil)
+	_ Message         = (*CreateResponse)(nil)
+	_ Message         = (*ReadRequest)(nil)
+	_ Message         = (*ReadResponse)(nil)
+	_ Message         = (*WriteRequest)(nil)
+	_ Message         = (*WriteResponse)(nil)
+	_ Message         = (*ClunkRequest)(nil)
+	_ Message         = (*ClunkResponse)(nil)
+	_ Message         = (*RemoveRequest)(nil)
+	_ Message         = (*RemoveResponse)(nil)
+	_ Message         = (*StatRequest)(nil)
+	_ Message         = (*StatResponse)(nil)
+	_ Message         = (*WriteStatRequest)(nil)
+	_ Message         = (*WriteStatResponse)(nil)
 )
 
 var tests = []struct {
-	in        codec
+	in        interface{}
 	reference []byte
 }{
 	{
@@ -267,11 +261,11 @@ var tests = []struct {
 	},
 }
 
-func reencode(i int, in codec, reference []byte, t *testing.T, p Protocol) {
+func reencode(i int, in interface{}, reference []byte, t *testing.T, p Protocol) {
 	var (
 		buf   = new(bytes.Buffer)
 		s     []byte
-		other codec
+		other interface{}
 		err   error
 	)
 
@@ -295,7 +289,8 @@ func reencode(i int, in codec, reference []byte, t *testing.T, p Protocol) {
 			return
 		}
 	} else {
-		if s, err = in.MarshalBinary(); err != nil {
+		inc := in.(binaryBothWayer)
+		if s, err = inc.MarshalBinary(); err != nil {
 			t.Errorf("test %d: encoding failed for %v: %v", i, inputType, err)
 			return
 		}
@@ -304,11 +299,12 @@ func reencode(i int, in codec, reference []byte, t *testing.T, p Protocol) {
 			return
 		}
 		// Magic to construct a new codec of the input type
-		other = reflect.New(inputType).Interface().(codec)
-		if err = other.UnmarshalBinary(s); err != nil {
+		x := reflect.New(inputType).Interface().(binaryBothWayer)
+		if err = x.UnmarshalBinary(s); err != nil {
 			t.Errorf("test %d: decoding failed for %v: %v", i, inputType, err)
 			return
 		}
+		other = x
 	}
 
 	// Comparing the interfaces would result in pointer comparisons, so get the basic type first

@@ -1,7 +1,5 @@
 package qp
 
-import "io"
-
 // NineP2000Dotu implements 9P2000.u encoding and decoding. 9P2000.u is meant
 // as a unix compatibility extension. 9P is designed for Plan9, and as thus
 // send many things as strings rather than numeric codes, such as user IDs and
@@ -87,120 +85,6 @@ func (s *StatDotu) EncodedLength() int {
 	return 2 + 2 + 4 + 13 + 4 + 4 + 4 + 8 + 8 + len(s.Name) + len(s.UID) + len(s.GID) + len(s.MUID) + 2 + len(s.Extensions) + 4 + 4 + 4
 }
 
-// Decode decodes a stream into the message.
-func (s *StatDotu) Decode(r io.Reader) error {
-	var err error
-
-	// We have no use of this length
-	if _, err = readUint16(r); err != nil {
-		return err
-	}
-	if s.Type, err = readUint16(r); err != nil {
-		return err
-	}
-	if s.Dev, err = readUint32(r); err != nil {
-		return err
-	}
-	if err = s.Qid.Decode(r); err != nil {
-		return err
-	}
-	if s.Mode, err = readFileMode(r); err != nil {
-		return err
-	}
-	if s.Atime, err = readUint32(r); err != nil {
-		return err
-	}
-	if s.Mtime, err = readUint32(r); err != nil {
-		return err
-	}
-	if s.Length, err = readUint64(r); err != nil {
-		return err
-	}
-	if s.Name, err = readString(r); err != nil {
-		return err
-	}
-	if s.UID, err = readString(r); err != nil {
-		return err
-	}
-	if s.GID, err = readString(r); err != nil {
-		return err
-	}
-	if s.MUID, err = readString(r); err != nil {
-		return err
-	}
-	if s.Extensions, err = readString(r); err != nil {
-		return err
-	}
-	if s.UIDno, err = readUint32(r); err != nil {
-		return err
-	}
-	if s.GIDno, err = readUint32(r); err != nil {
-		return err
-	}
-	if s.MUIDno, err = readUint32(r); err != nil {
-		return err
-	}
-	return nil
-}
-
-// Encode encodes the message into a stream.
-func (s *StatDotu) Encode(w io.Writer) error {
-	var err error
-
-	l := uint16(s.EncodedLength() - 2)
-
-	if err = writeUint16(w, l); err != nil {
-		return err
-	}
-	if err = writeUint16(w, s.Type); err != nil {
-		return err
-	}
-	if err = writeUint32(w, s.Dev); err != nil {
-		return err
-	}
-	if err = s.Qid.Encode(w); err != nil {
-		return err
-	}
-	if err = writeFileMode(w, s.Mode); err != nil {
-		return err
-	}
-	if err = writeUint32(w, s.Atime); err != nil {
-		return err
-	}
-	if err = writeUint32(w, s.Mtime); err != nil {
-		return err
-	}
-	if err = writeUint64(w, s.Length); err != nil {
-		return err
-	}
-	if err = writeString(w, s.Name); err != nil {
-		return err
-	}
-	if err = writeString(w, s.UID); err != nil {
-		return err
-	}
-	if err = writeString(w, s.GID); err != nil {
-		return err
-	}
-	if err = writeString(w, s.MUID); err != nil {
-		return err
-	}
-	if err = writeString(w, s.Extensions); err != nil {
-		return err
-	}
-	if err = writeUint32(w, s.UIDno); err != nil {
-		return err
-	}
-	if err = writeUint32(w, s.GIDno); err != nil {
-		return err
-	}
-	if err = writeUint32(w, s.MUIDno); err != nil {
-		return err
-	}
-	return nil
-
-}
-
 // AuthRequestDotu is the 9P2000.u version of AuthRequestDotu. It adds UIDno,
 // for compatibility with platforms that use numeric user IDs. UIDno takes
 // precedence over Username.
@@ -223,48 +107,6 @@ type AuthRequestDotu struct {
 // EncodedLength returns the length the message will be when serialized.
 func (ar *AuthRequestDotu) EncodedLength() int {
 	return 2 + 4 + 2 + len(ar.Username) + 2 + len(ar.Service) + 4
-}
-
-// Decode decodes a stream into the message.
-func (ar *AuthRequestDotu) Decode(r io.Reader) error {
-	var err error
-	if ar.Tag, err = readTag(r); err != nil {
-		return err
-	}
-	if ar.AuthFid, err = readFid(r); err != nil {
-		return err
-	}
-	if ar.Username, err = readString(r); err != nil {
-		return err
-	}
-	if ar.Service, err = readString(r); err != nil {
-		return err
-	}
-	if ar.UIDno, err = readUint32(r); err != nil {
-		return err
-	}
-	return nil
-}
-
-// Encode encodes the message into a stream.
-func (ar *AuthRequestDotu) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, ar.Tag); err != nil {
-		return err
-	}
-	if err = writeFid(w, ar.AuthFid); err != nil {
-		return err
-	}
-	if err = writeString(w, ar.Username); err != nil {
-		return err
-	}
-	if err = writeString(w, ar.Service); err != nil {
-		return err
-	}
-	if err = writeUint32(w, ar.UIDno); err != nil {
-		return err
-	}
-	return nil
 }
 
 // AttachRequestDotu is the 9P2000.u version of AttachRequestDotu. It adds
@@ -295,54 +137,6 @@ func (ar *AttachRequestDotu) EncodedLength() int {
 	return 2 + 4 + 4 + 2 + len(ar.Username) + 2 + len(ar.Service) + 4
 }
 
-// Decode decodes a stream into the message.
-func (ar *AttachRequestDotu) Decode(r io.Reader) error {
-	var err error
-	if ar.Tag, err = readTag(r); err != nil {
-		return err
-	}
-	if ar.Fid, err = readFid(r); err != nil {
-		return err
-	}
-	if ar.AuthFid, err = readFid(r); err != nil {
-		return err
-	}
-	if ar.Username, err = readString(r); err != nil {
-		return err
-	}
-	if ar.Service, err = readString(r); err != nil {
-		return err
-	}
-	if ar.UIDno, err = readUint32(r); err != nil {
-		return err
-	}
-	return nil
-}
-
-// Encode encodes the message into a stream.
-func (ar *AttachRequestDotu) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, ar.Tag); err != nil {
-		return err
-	}
-	if err = writeFid(w, ar.Fid); err != nil {
-		return err
-	}
-	if err = writeFid(w, ar.AuthFid); err != nil {
-		return err
-	}
-	if err = writeString(w, ar.Username); err != nil {
-		return err
-	}
-	if err = writeString(w, ar.Service); err != nil {
-		return err
-	}
-	if err = writeUint32(w, ar.UIDno); err != nil {
-		return err
-	}
-	return nil
-}
-
 // ErrorResponseDotu is the 9P2000.u version of ErrorResponse. It adds Errno
 // in an attempt to improve compatibility with platforms that use numeric
 // errors. Errno takes precedence over Error.
@@ -359,36 +153,6 @@ type ErrorResponseDotu struct {
 // EncodedLength returns the length the message will be when serialized.
 func (er *ErrorResponseDotu) EncodedLength() int {
 	return 2 + 2 + len(er.Error) + 4
-}
-
-// Decode decodes a stream into the message.
-func (er *ErrorResponseDotu) Decode(r io.Reader) error {
-	var err error
-	if er.Tag, err = readTag(r); err != nil {
-		return err
-	}
-	if er.Error, err = readString(r); err != nil {
-		return err
-	}
-	if er.Errno, err = readUint32(r); err != nil {
-		return err
-	}
-	return nil
-}
-
-// Encode encodes the message into a stream.
-func (er *ErrorResponseDotu) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, er.Tag); err != nil {
-		return err
-	}
-	if err = writeString(w, er.Error); err != nil {
-		return err
-	}
-	if err = writeUint32(w, er.Errno); err != nil {
-		return err
-	}
-	return nil
 }
 
 // CreateRequestDotu is the 9P2000.u version of CreateRequest. It adds
@@ -418,54 +182,6 @@ func (cr *CreateRequestDotu) EncodedLength() int {
 	return 2 + 4 + 2 + len(cr.Name) + 4 + 1 + 2 + len(cr.Extensions)
 }
 
-// Decode decodes a stream into the message.
-func (cr *CreateRequestDotu) Decode(r io.Reader) error {
-	var err error
-	if cr.Tag, err = readTag(r); err != nil {
-		return err
-	}
-	if cr.Fid, err = readFid(r); err != nil {
-		return err
-	}
-	if cr.Name, err = readString(r); err != nil {
-		return err
-	}
-	if cr.Permissions, err = readFileMode(r); err != nil {
-		return err
-	}
-	if cr.Mode, err = readOpenMode(r); err != nil {
-		return err
-	}
-	if cr.Extensions, err = readString(r); err != nil {
-		return err
-	}
-	return nil
-}
-
-// Encode encodes the message into a stream.
-func (cr *CreateRequestDotu) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, cr.Tag); err != nil {
-		return err
-	}
-	if err = writeFid(w, cr.Fid); err != nil {
-		return err
-	}
-	if err = writeString(w, cr.Name); err != nil {
-		return err
-	}
-	if err = writeFileMode(w, cr.Permissions); err != nil {
-		return err
-	}
-	if err = writeOpenMode(w, cr.Mode); err != nil {
-		return err
-	}
-	if err = writeString(w, cr.Extensions); err != nil {
-		return err
-	}
-	return nil
-}
-
 // StatResponseDotu is the 9P2000.u version of StatResponse. It uses a
 // different stat struct, StatDotu.
 type StatResponseDotu struct {
@@ -478,42 +194,6 @@ type StatResponseDotu struct {
 // EncodedLength returns the length the message will be when serialized.
 func (sr *StatResponseDotu) EncodedLength() int {
 	return 2 + 2 + sr.Stat.EncodedLength()
-}
-
-// Decode decodes a stream into the message.
-func (sr *StatResponseDotu) Decode(r io.Reader) error {
-	var err error
-	if sr.Tag, err = readTag(r); err != nil {
-		return err
-	}
-
-	// We don't need this
-	if _, err = readUint16(r); err != nil {
-		return err
-	}
-
-	if err = sr.Stat.Decode(r); err != nil {
-		return err
-	}
-	return nil
-}
-
-// Encode encodes the message into a stream.
-func (sr *StatResponseDotu) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, sr.Tag); err != nil {
-		return err
-	}
-
-	if err = writeUint16(w, uint16(sr.Stat.EncodedLength())); err != nil {
-		return err
-	}
-
-	if err = sr.Stat.Encode(w); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // WriteStatRequestDotu is the 9P2000.u version of WriteStatRequest. It uses a
@@ -531,43 +211,4 @@ type WriteStatRequestDotu struct {
 // EncodedLength returns the length the message will be when serialized.
 func (wsr *WriteStatRequestDotu) EncodedLength() int {
 	return 2 + 4 + 2 + wsr.Stat.EncodedLength()
-}
-
-// Decode decodes a stream into the message.
-func (wsr *WriteStatRequestDotu) Decode(r io.Reader) error {
-	var err error
-	if wsr.Tag, err = readTag(r); err != nil {
-		return err
-	}
-	if wsr.Fid, err = readFid(r); err != nil {
-		return err
-	}
-
-	// We don't need the stat size
-	if _, err = readUint16(r); err != nil {
-		return err
-	}
-
-	if err = wsr.Stat.Decode(r); err != nil {
-		return err
-	}
-	return nil
-}
-
-// Encode encodes the message into a stream.
-func (wsr *WriteStatRequestDotu) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, wsr.Tag); err != nil {
-		return err
-	}
-	if err = writeFid(w, wsr.Fid); err != nil {
-		return err
-	}
-	if err = writeUint16(w, uint16(wsr.Stat.EncodedLength())); err != nil {
-		return err
-	}
-	if err = wsr.Stat.Encode(w); err != nil {
-		return err
-	}
-	return nil
 }

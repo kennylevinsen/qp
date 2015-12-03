@@ -1,9 +1,11 @@
 package qp
 
 import (
-	"encoding"
+	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
+	"reflect"
 )
 
 // Default is the protocol used by the raw Encode and Decode functions.
@@ -24,8 +26,6 @@ type MessageType byte
 // message tag, which is merely a convenience feature to save a type assert
 // for access to the tag.
 type Message interface {
-	encoding.BinaryUnmarshaler
-	encoding.BinaryMarshaler
 	EncodedLength() int
 	GetTag() Tag
 }
@@ -55,6 +55,292 @@ func DecodeHdr(r io.Reader) (uint32, MessageType, error) {
 type Codec struct {
 	M2MT func(Message) (MessageType, error)
 	MT2M func(MessageType) (Message, error)
+}
+
+func decipherQid(b []byte, idx int) (Qid, int, error) {
+	var err error
+	q := Qid{}
+	if q.Type, idx, err = nreadQidType(b, idx); err != nil {
+		return q, idx, err
+	}
+	if q.Version, idx, err = nreadUint32(b, idx); err != nil {
+		return q, idx, err
+	}
+	if q.Path, idx, err = nreadUint64(b, idx); err != nil {
+		return q, idx, err
+	}
+	return q, idx, nil
+}
+
+func decipherStat(b []byte, idx int) (Stat, int, error) {
+	var err error
+	s := Stat{}
+	if _, idx, err = nreadUint16(b, idx); err != nil {
+		return s, idx, err
+	}
+	if s.Type, idx, err = nreadUint16(b, idx); err != nil {
+		return s, idx, err
+	}
+	if s.Dev, idx, err = nreadUint32(b, idx); err != nil {
+		return s, idx, err
+	}
+	if err = s.Qid.UnmarshalBinary(b[idx : idx+13]); err != nil {
+		return s, idx, err
+	}
+	idx += 13
+	if s.Mode, idx, err = nreadFileMode(b, idx); err != nil {
+		return s, idx, err
+	}
+	if s.Atime, idx, err = nreadUint32(b, idx); err != nil {
+		return s, idx, err
+	}
+	if s.Mtime, idx, err = nreadUint32(b, idx); err != nil {
+		return s, idx, err
+	}
+	if s.Length, idx, err = nreadUint64(b, idx); err != nil {
+		return s, idx, err
+	}
+	if s.Name, idx, err = nreadString(b, idx); err != nil {
+		return s, idx, err
+	}
+	if s.UID, idx, err = nreadString(b, idx); err != nil {
+		return s, idx, err
+	}
+	if s.GID, idx, err = nreadString(b, idx); err != nil {
+		return s, idx, err
+	}
+	if s.MUID, idx, err = nreadString(b, idx); err != nil {
+		return s, idx, err
+	}
+	return s, idx, nil
+}
+
+func decode(b []byte, m interface{}) error {
+	var err error
+	v := reflect.ValueOf(m)
+	k := v.Kind()
+	switch k {
+	case reflect.Interface, reflect.Ptr:
+		v = v.Elem()
+	}
+	n := v.NumField()
+	idx := 0
+	for i := 0; i < n; i++ {
+		f := v.Field(i)
+		switch f.Interface().(type) {
+		case uint8:
+			var x uint8
+			x, idx, err = nreadByte(b, idx)
+			if err != nil {
+				return err
+			}
+			f.Set(reflect.ValueOf(x))
+		case OpenMode:
+			var x OpenMode
+			x, idx, err = nreadOpenMode(b, idx)
+			if err != nil {
+				return err
+			}
+			f.Set(reflect.ValueOf(x))
+		case uint16:
+			var x uint16
+			x, idx, err = nreadUint16(b, idx)
+			if err != nil {
+				return err
+			}
+			f.Set(reflect.ValueOf(x))
+		case Tag:
+			var x Tag
+			x, idx, err = nreadTag(b, idx)
+			if err != nil {
+				return err
+			}
+			f.Set(reflect.ValueOf(x))
+		case uint32:
+			var x uint32
+			x, idx, err = nreadUint32(b, idx)
+			if err != nil {
+				return err
+			}
+			f.Set(reflect.ValueOf(x))
+		case Fid:
+			var x Fid
+			x, idx, err = nreadFid(b, idx)
+			if err != nil {
+				return err
+			}
+			f.Set(reflect.ValueOf(x))
+		case FileMode:
+			var x FileMode
+			x, idx, err = nreadFileMode(b, idx)
+			if err != nil {
+				return err
+			}
+			f.Set(reflect.ValueOf(x))
+		case uint64:
+			var x uint64
+			x, idx, err = nreadUint64(b, idx)
+			if err != nil {
+				return err
+			}
+			f.Set(reflect.ValueOf(x))
+		case string:
+			var x string
+			x, idx, err = nreadString(b, idx)
+			if err != nil {
+				return err
+			}
+			f.Set(reflect.ValueOf(x))
+		case Qid:
+			var x Qid
+			x, idx, err = decipherQid(b, idx)
+			if err != nil {
+				return err
+			}
+			f.Set(reflect.ValueOf(x))
+		case Stat:
+			_, idx, err = nreadUint16(b, idx)
+			if err != nil {
+				return err
+			}
+			var x Stat
+			x, idx, err = decipherStat(b, idx)
+			if err != nil {
+				return err
+			}
+			f.Set(reflect.ValueOf(x))
+		case []byte:
+			var l uint32
+			l, idx, err = nreadUint32(b, idx)
+			if err != nil {
+				return err
+			}
+			x := make([]byte, l)
+			copy(x, b[idx:idx+int(l)])
+			idx += int(l)
+			f.Set(reflect.ValueOf(x))
+		case []string:
+			var l uint16
+			l, idx, err = nreadUint16(b, idx)
+			if err != nil {
+				return err
+			}
+			x := make([]string, l)
+			for i := 0; i < int(l); i++ {
+				var s string
+				s, idx, err = nreadString(b, idx)
+				if err != nil {
+					return err
+				}
+				x[i] = s
+			}
+			f.Set(reflect.ValueOf(x))
+		case []Qid:
+			var l uint16
+			l, idx, err = nreadUint16(b, idx)
+			if err != nil {
+				return err
+			}
+			x := make([]Qid, l)
+			for i := 0; i < int(l); i++ {
+				var q Qid
+				q, idx, err = decipherQid(b, idx)
+				if err != nil {
+					return err
+				}
+				x[i] = q
+			}
+			f.Set(reflect.ValueOf(x))
+		default:
+			return fmt.Errorf("unknown field type: %T", f.Interface())
+		}
+	}
+	return nil
+}
+
+func encodeQid(b []byte, q Qid) []byte {
+	b = nwriteQidType(b, q.Type)
+	b = nwriteUint32(b, q.Version)
+	b = nwriteUint64(b, q.Path)
+	return b
+}
+
+func encodeStat(b []byte, s Stat) []byte {
+	l := len(b)
+	b = append(b, []byte{0, 0}...)
+	b = nwriteUint16(b, s.Type)
+	b = nwriteUint32(b, s.Dev)
+	b = encodeQid(b, s.Qid)
+	b = nwriteFileMode(b, s.Mode)
+	b = nwriteUint32(b, s.Atime)
+	b = nwriteUint32(b, s.Mtime)
+	b = nwriteUint64(b, s.Length)
+	b = nwriteString(b, s.Name)
+	b = nwriteString(b, s.UID)
+	b = nwriteString(b, s.GID)
+	b = nwriteString(b, s.MUID)
+	binary.LittleEndian.PutUint16(b[l:l+2], uint16(len(b)-l-2))
+	return b
+}
+
+func encode(m interface{}) ([]byte, error) {
+	v := reflect.ValueOf(m)
+	k := v.Kind()
+	switch k {
+	case reflect.Interface, reflect.Ptr:
+		v = v.Elem()
+	}
+	n := v.NumField()
+	var b []byte
+	for i := 0; i < n; i++ {
+		f := v.Field(i)
+		switch fv := f.Interface().(type) {
+		case uint8:
+			b = nwriteByte(b, fv)
+		case OpenMode:
+			b = nwriteOpenMode(b, fv)
+		case uint16:
+			b = nwriteUint16(b, fv)
+		case Tag:
+			b = nwriteTag(b, fv)
+		case uint32:
+			b = nwriteUint32(b, fv)
+		case Fid:
+			b = nwriteFid(b, fv)
+		case FileMode:
+			b = nwriteFileMode(b, fv)
+		case uint64:
+			b = nwriteUint64(b, fv)
+		case string:
+			b = nwriteString(b, fv)
+		case Qid:
+			b = encodeQid(b, fv)
+		case Stat, StatDotu:
+			x, err := encode(fv)
+			if err != nil {
+				return nil, err
+			}
+			b = nwriteUint16(b, uint16(len(x)+2))
+			b = nwriteUint16(b, uint16(len(x)))
+			b = append(b, x...)
+		case []byte:
+			b = nwriteUint32(b, uint32(len(fv)))
+			b = append(b, fv...)
+		case []string:
+			b = nwriteUint16(b, uint16(len(fv)))
+			for i := range fv {
+				b = nwriteString(b, fv[i])
+			}
+		case []Qid:
+			b = nwriteUint16(b, uint16(len(fv)))
+			for i := range fv {
+				b = encodeQid(b, fv[i])
+			}
+		default:
+			return nil, fmt.Errorf("unknown field type: %T", fv)
+		}
+	}
+	return b, nil
 }
 
 // Decode decodes an entire message, including header, and returns the message.
@@ -87,9 +373,13 @@ func (c *Codec) Decode(r io.Reader) (Message, error) {
 		return nil, err
 	}
 
-	if err = m.UnmarshalBinary(b); err != nil {
+	if err = decode(b, m); err != nil {
 		return nil, err
 	}
+
+	/*	if err = m.UnmarshalBinary(b); err != nil {
+		return nil, err
+	}*/
 	return m, nil
 }
 
@@ -103,7 +393,10 @@ func (c *Codec) Encode(w io.Writer, m Message) error {
 	}
 
 	var b []byte
-	if b, err = m.MarshalBinary(); err != nil {
+	/*	if b, err = m.MarshalBinary(); err != nil {
+		return err
+	}*/
+	if b, err = encode(m); err != nil {
 		return err
 	}
 
