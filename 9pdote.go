@@ -1,6 +1,6 @@
 package qp
 
-import "io"
+import "encoding/binary"
 
 // NineP2000Dote implements 9P2000.e encoding and decoding. 9P2000.e is meant
 // to provide the ability to restore a session, as well as shorthands for
@@ -33,33 +33,20 @@ type SessionRequestDote struct {
 	Key [8]byte
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (sr *SessionRequestDote) EncodedLength() int {
-	return 2 + 8
-}
-
-// Decode decodes a stream into the message.
-func (sr *SessionRequestDote) Decode(r io.Reader) error {
-	var err error
-	if sr.Tag, err = readTag(r); err != nil {
-		return err
+func (sr *SessionRequestDote) UnmarshalBinary(b []byte) error {
+	if len(b) < 2+8 {
+		return ErrPayloadTooShort
 	}
-	if err = read(r, sr.Key[:]); err != nil {
-		return err
-	}
+	sr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
+	copy(sr.Key[:], b[2:10])
 	return nil
 }
 
-// Encode encodes the message into a stream.
-func (sr *SessionRequestDote) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, sr.Tag); err != nil {
-		return err
-	}
-	if err = write(w, sr.Key[:]); err != nil {
-		return err
-	}
-	return nil
+func (sr *SessionRequestDote) MarshalBinary() ([]byte, error) {
+	b := make([]byte, 2+8)
+	binary.LittleEndian.PutUint16(b[0:2], uint16(sr.Tag))
+	copy(b[2:], sr.Key[:])
+	return b, nil
 }
 
 // SessionResponseDote is used to indicate a successful session restore.
@@ -67,27 +54,18 @@ type SessionResponseDote struct {
 	Tag
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (sr *SessionResponseDote) EncodedLength() int {
-	return 2
-}
-
-// Decode decodes a stream into the message.
-func (sr *SessionResponseDote) Decode(r io.Reader) error {
-	var err error
-	if sr.Tag, err = readTag(r); err != nil {
-		return err
+func (sr *SessionResponseDote) UnmarshalBinary(b []byte) error {
+	if len(b) < 2 {
+		return ErrPayloadTooShort
 	}
+	sr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
 	return nil
 }
 
-// Encode encodes the message into a stream.
-func (sr *SessionResponseDote) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, sr.Tag); err != nil {
-		return err
-	}
-	return nil
+func (sr *SessionResponseDote) MarshalBinary() ([]byte, error) {
+	b := make([]byte, 2)
+	binary.LittleEndian.PutUint16(b[0:2], uint16(sr.Tag))
+	return b, nil
 }
 
 // SimpleReadRequestDote is used to quickly read a file. The request is
@@ -103,55 +81,48 @@ type SimpleReadRequestDote struct {
 	Names []string
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (srr *SimpleReadRequestDote) EncodedLength() int {
-	x := 0
+func (srr *SimpleReadRequestDote) UnmarshalBinary(b []byte) error {
+	t := 2 + 4 + 2
+	if len(b) < t {
+		return ErrPayloadTooShort
+	}
+	srr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
+	srr.Fid = Fid(binary.LittleEndian.Uint32(b[2:6]))
+	l := int(binary.LittleEndian.Uint16(b[6:8]))
+	idx := 8
+	srr.Names = make([]string, l)
 	for i := range srr.Names {
-		x += 2 + len(srr.Names[i])
-	}
-	return 2 + 4 + 2 + x
-}
-
-// Decode decodes a stream into the message.
-func (srr *SimpleReadRequestDote) Decode(r io.Reader) error {
-	var err error
-	if srr.Tag, err = readTag(r); err != nil {
-		return err
-	}
-	if srr.Fid, err = readFid(r); err != nil {
-		return err
-	}
-	var arr uint16
-	if arr, err = readUint16(r); err != nil {
-		return err
-	}
-	srr.Names = make([]string, arr)
-	for i := 0; i < int(arr); i++ {
-		if srr.Names[i], err = readString(r); err != nil {
-			return err
+		if len(b) < t+2 {
+			return ErrPayloadTooShort
 		}
+		l = int(binary.LittleEndian.Uint16(b[idx : idx+2]))
+		if len(b) < t+2+l {
+			return ErrPayloadTooShort
+		}
+		srr.Names[i] = string(b[idx+2 : idx+2+l])
+		idx += 2 + l
+		t += 2 + l
 	}
 	return nil
 }
 
-// Encode encodes the message into a stream.
-func (srr *SimpleReadRequestDote) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, srr.Tag); err != nil {
-		return err
-	}
-	if err = writeFid(w, srr.Fid); err != nil {
-		return err
-	}
-	if err = writeUint16(w, uint16(len(srr.Names))); err != nil {
-		return err
-	}
+func (srr *SimpleReadRequestDote) MarshalBinary() ([]byte, error) {
+	l := 2 + 4 + 2
 	for i := range srr.Names {
-		if err = writeString(w, srr.Names[i]); err != nil {
-			return err
-		}
+		l += 2 + len(srr.Names[i])
 	}
-	return nil
+	b := make([]byte, l)
+	binary.LittleEndian.PutUint16(b[0:2], uint16(srr.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(srr.Fid))
+	binary.LittleEndian.PutUint16(b[6:8], uint16(len(srr.Names)))
+	idx := 8
+	for i := range srr.Names {
+		l := len(srr.Names[i])
+		binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(l))
+		copy(b[idx+2:], []byte(srr.Names[i]))
+		idx += 2 + l
+	}
+	return b, nil
 }
 
 // SimpleReadResponseDote is used to return the read data.
@@ -161,41 +132,27 @@ type SimpleReadResponseDote struct {
 	Data []byte
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (srr *SimpleReadResponseDote) EncodedLength() int {
-	return 2 + 4 + len(srr.Data)
-}
-
-// Decode decodes a stream into the message.
-func (srr *SimpleReadResponseDote) Decode(r io.Reader) error {
-	var err error
-	if srr.Tag, err = readTag(r); err != nil {
-		return err
+func (srr *SimpleReadResponseDote) UnmarshalBinary(b []byte) error {
+	if len(b) < 2+4 {
+		return ErrPayloadTooShort
 	}
-	var l uint32
-	if l, err = readUint32(r); err != nil {
-		return err
+
+	srr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
+	l := int(binary.LittleEndian.Uint32(b[2:6]))
+	if len(b) < 2+4+l {
+		return ErrPayloadTooShort
 	}
 	srr.Data = make([]byte, l)
-	if err = read(r, srr.Data); err != nil {
-		return err
-	}
+	copy(srr.Data, b[6:6+l])
 	return nil
 }
 
-// Encode encodes the message into a stream.
-func (srr *SimpleReadResponseDote) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, srr.Tag); err != nil {
-		return err
-	}
-	if err = writeUint32(w, uint32(len(srr.Data))); err != nil {
-		return err
-	}
-	if err = write(w, srr.Data); err != nil {
-		return err
-	}
-	return nil
+func (srr *SimpleReadResponseDote) MarshalBinary() ([]byte, error) {
+	b := make([]byte, 2+4+len(srr.Data))
+	binary.LittleEndian.PutUint16(b[0:2], uint16(srr.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(len(srr.Data)))
+	copy(b[6:], srr.Data)
+	return b, nil
 }
 
 // SimpleWriteRequestDote is used to quickly create a file if it doesn't
@@ -215,69 +172,56 @@ type SimpleWriteRequestDote struct {
 	Data []byte
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (swr *SimpleWriteRequestDote) EncodedLength() int {
-	x := 0
+func (swr *SimpleWriteRequestDote) UnmarshalBinary(b []byte) error {
+	t := 2 + 4 + 2 + 4
+	if len(b) < t {
+		return ErrPayloadTooShort
+	}
+	swr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
+	swr.Fid = Fid(binary.LittleEndian.Uint32(b[2:6]))
+	l := int(binary.LittleEndian.Uint16(b[6:8]))
+	idx := 8
+	swr.Names = make([]string, l)
 	for i := range swr.Names {
-		x += 2 + len(swr.Names[i])
-	}
-	return 2 + 4 + 2 + x + 4 + len(swr.Data)
-}
-
-// Decode decodes a stream into the message.
-func (swr *SimpleWriteRequestDote) Decode(r io.Reader) error {
-	var err error
-	if swr.Tag, err = readTag(r); err != nil {
-		return err
-	}
-	if swr.Fid, err = readFid(r); err != nil {
-		return err
-	}
-	var arr uint16
-	if arr, err = readUint16(r); err != nil {
-		return err
-	}
-	swr.Names = make([]string, arr)
-	for i := 0; i < int(arr); i++ {
-		if swr.Names[i], err = readString(r); err != nil {
-			return err
+		if len(b) < t+2 {
+			return ErrPayloadTooShort
 		}
+		l = int(binary.LittleEndian.Uint16(b[idx : idx+2]))
+		if len(b) < t+2+l {
+			return ErrPayloadTooShort
+		}
+		swr.Names[i] = string(b[idx+2 : idx+2+l])
+		idx += 2 + l
+		t += 2 + l
 	}
-	var l uint32
-	if l, err = readUint32(r); err != nil {
-		return err
+	l = int(binary.LittleEndian.Uint32(b[idx : idx+4]))
+	if len(b) < t+l {
+		return ErrPayloadTooShort
 	}
 	swr.Data = make([]byte, l)
-	if err = read(r, swr.Data); err != nil {
-		return err
-	}
+	copy(swr.Data, b[idx+4:idx+4+l])
 	return nil
 }
 
-// Encode encodes the message into a stream.
-func (swr *SimpleWriteRequestDote) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, swr.Tag); err != nil {
-		return err
-	}
-	if err = writeFid(w, swr.Fid); err != nil {
-		return err
-	}
-	if err = writeUint16(w, uint16(len(swr.Names))); err != nil {
-		return err
-	}
+func (swr *SimpleWriteRequestDote) MarshalBinary() ([]byte, error) {
+	l := 2 + 4 + 2 + 4 + len(swr.Data)
 	for i := range swr.Names {
-		if err = writeString(w, swr.Names[i]); err != nil {
-			return err
-		}
+		l += 2 + len(swr.Names[i])
 	}
-	if err = writeUint32(w, uint32(len(swr.Data))); err != nil {
-		return err
+	b := make([]byte, l)
+	binary.LittleEndian.PutUint16(b[0:2], uint16(swr.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(swr.Fid))
+	binary.LittleEndian.PutUint16(b[6:8], uint16(len(swr.Names)))
+	idx := 8
+	for i := range swr.Names {
+		l := len(swr.Names[i])
+		binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(l))
+		copy(b[idx+2:], []byte(swr.Names[i]))
+		idx += 2 + l
 	}
-	if err = write(w, swr.Data); err != nil {
-		return err
-	}
-	return nil
+	binary.LittleEndian.PutUint32(b[idx:idx+4], uint32(len(swr.Data)))
+	copy(b[idx+4:], swr.Data)
+	return b, nil
 }
 
 // SimpleWriteResponseDote is used to inform of how much data was written.
@@ -287,31 +231,24 @@ type SimpleWriteResponseDote struct {
 	Count uint32
 }
 
+func (swr *SimpleWriteResponseDote) UnmarshalBinary(b []byte) error {
+	if len(b) < 2+4 {
+		return ErrPayloadTooShort
+	}
+
+	swr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
+	swr.Count = binary.LittleEndian.Uint32(b[2:6])
+	return nil
+}
+
+func (swr *SimpleWriteResponseDote) MarshalBinary() ([]byte, error) {
+	b := make([]byte, 2+4)
+	binary.LittleEndian.PutUint16(b[0:2], uint16(swr.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], swr.Count)
+	return b, nil
+}
+
 // EncodedLength returns the length the message will be when serialized.
 func (swr *SimpleWriteResponseDote) EncodedLength() int {
 	return 2 + 4
-}
-
-// Decode decodes a stream into the message.
-func (swr *SimpleWriteResponseDote) Decode(r io.Reader) error {
-	var err error
-	if swr.Tag, err = readTag(r); err != nil {
-		return err
-	}
-	if swr.Count, err = readUint32(r); err != nil {
-		return err
-	}
-	return nil
-}
-
-// Encode encodes the message into a stream.
-func (swr *SimpleWriteResponseDote) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, swr.Tag); err != nil {
-		return err
-	}
-	if err = writeUint32(w, swr.Count); err != nil {
-		return err
-	}
-	return nil
 }

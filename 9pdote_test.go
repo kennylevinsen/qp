@@ -16,7 +16,7 @@ var (
 // that all codecs are compatible with themselves.
 func TestReencodeDote(t *testing.T) {
 	tests := []struct {
-		in        codec
+		in        interface{}
 		reference []byte
 	}{
 		{

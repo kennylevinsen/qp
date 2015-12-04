@@ -4,20 +4,20 @@ import "testing"
 
 // Test if the types live up to their interface
 var (
-	_ codec   = (*StatDotu)(nil)
-	_ Message = (*AuthRequestDotu)(nil)
-	_ Message = (*AttachRequestDotu)(nil)
-	_ Message = (*ErrorResponseDotu)(nil)
-	_ Message = (*CreateRequestDotu)(nil)
-	_ Message = (*StatResponseDotu)(nil)
-	_ Message = (*WriteStatRequestDotu)(nil)
+	_ binaryBothWayer = (*StatDotu)(nil)
+	_ Message         = (*AuthRequestDotu)(nil)
+	_ Message         = (*AttachRequestDotu)(nil)
+	_ Message         = (*ErrorResponseDotu)(nil)
+	_ Message         = (*CreateRequestDotu)(nil)
+	_ Message         = (*StatResponseDotu)(nil)
+	_ Message         = (*WriteStatRequestDotu)(nil)
 )
 
 // This test does NOT guarantee proper 9P2000 spec coding, but ensures at least
 // that all codecs are compatible with themselves.
 func TestReencodeDotu(t *testing.T) {
 	tests := []struct {
-		in        codec
+		in        interface{}
 		reference []byte
 	}{
 		{

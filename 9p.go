@@ -87,11 +87,6 @@ type Qid struct {
 	Path uint64
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (*Qid) EncodedLength() int {
-	return 13
-}
-
 func (q *Qid) UnmarshalBinary(b []byte) error {
 	if len(b) < 13 {
 		return ErrPayloadTooShort
@@ -147,13 +142,8 @@ type Stat struct {
 	MUID string
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (s *Stat) EncodedLength() int {
-	return 2 + 2 + 4 + 13 + 4 + 4 + 4 + 8 + 8 + len(s.Name) + len(s.UID) + len(s.GID) + len(s.MUID)
-}
-
 func (s *Stat) UnmarshalBinary(b []byte) error {
-	t := 2 + 2 + 4 + 13 + 4 + 4 + 4 + 8 + 8
+	t := 2 + 2 + 4 + 13 + 4 + 4 + 4 + 8 + 2 + 2 + 2 + 2
 	if len(b) < t {
 		return ErrPayloadTooShort
 	}
@@ -214,7 +204,8 @@ func (s *Stat) UnmarshalBinary(b []byte) error {
 }
 
 func (s *Stat) MarshalBinary() ([]byte, error) {
-	l := 2 + 2 + 4 + 13 + 4 + 4 + 4 + 8 + 8 + len(s.Name) + len(s.UID) + len(s.GID) + len(s.MUID)
+	l := 2 + 2 + 4 + 13 + 4 + 4 + 4 + 8 + 2 + 2 + 2 + 2 + len(s.Name) + len(s.UID) + len(s.GID) + len(s.MUID)
+
 	b := make([]byte, l)
 	binary.LittleEndian.PutUint16(b[0:2], uint16(l-2))
 	binary.LittleEndian.PutUint16(b[2:4], s.Type)
@@ -275,11 +266,6 @@ type VersionRequest struct {
 	Version string
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (vr *VersionRequest) EncodedLength() int {
-	return 2 + 4 + 2 + len(vr.Version)
-}
-
 func (vr *VersionRequest) UnmarshalBinary(b []byte) error {
 	if len(b) < 2+4+2 {
 		return ErrPayloadTooShort
@@ -318,11 +304,6 @@ type VersionResponse struct {
 	// Version is the negotiated protocol version, or "unknown" if negotiation
 	// failed.
 	Version string
-}
-
-// EncodedLength returns the length the message will be when serialized.
-func (vr *VersionResponse) EncodedLength() int {
-	return 2 + 4 + 2 + len(vr.Version)
 }
 
 func (vr *VersionResponse) UnmarshalBinary(b []byte) error {
@@ -365,11 +346,6 @@ type AuthRequest struct {
 	// Service is the service to authenticate access to. This field is called
 	// "aname" in the official implementation.
 	Service string
-}
-
-// EncodedLength returns the length the message will be when serialized.
-func (ar *AuthRequest) EncodedLength() int {
-	return 2 + 4 + 2 + len(ar.Username) + 2 + len(ar.Service)
 }
 
 func (ar *AuthRequest) UnmarshalBinary(b []byte) error {
@@ -416,11 +392,6 @@ type AuthResponse struct {
 	AuthQid Qid
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (*AuthResponse) EncodedLength() int {
-	return 2 + 13
-}
-
 func (ar *AuthResponse) UnmarshalBinary(b []byte) error {
 	if len(b) < 2+13 {
 		return ErrPayloadTooShort
@@ -462,11 +433,6 @@ type AttachRequest struct {
 	// Service is the service that will be accessed. This field is called
 	// "aname" in the official implementation.
 	Service string
-}
-
-// EncodedLength returns the length the message will be when serialized.
-func (ar *AttachRequest) EncodedLength() int {
-	return 2 + 4 + 4 + 2 + len(ar.Username) + 2 + len(ar.Service)
 }
 
 func (ar *AttachRequest) UnmarshalBinary(b []byte) error {
@@ -513,11 +479,6 @@ type AttachResponse struct {
 	Qid Qid
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (*AttachResponse) EncodedLength() int {
-	return 2 + 13
-}
-
 func (ar *AttachResponse) UnmarshalBinary(b []byte) error {
 	if len(b) < 2+13 {
 		return ErrPayloadTooShort
@@ -547,11 +508,6 @@ type ErrorResponse struct {
 	// Error is the error string. This field is called "ename" in the official
 	// implementation.
 	Error string
-}
-
-// EncodedLength returns the length the message will be when serialized.
-func (er *ErrorResponse) EncodedLength() int {
-	return 2 + 2 + len(er.Error)
 }
 
 func (er *ErrorResponse) UnmarshalBinary(b []byte) error {
@@ -584,11 +540,6 @@ type FlushRequest struct {
 	OldTag Tag
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (*FlushRequest) EncodedLength() int {
-	return 2 + 2
-}
-
 func (fr *FlushRequest) UnmarshalBinary(b []byte) error {
 	if len(b) < 2+2 {
 		return ErrPayloadTooShort
@@ -609,11 +560,6 @@ func (fr *FlushRequest) MarshalBinary() ([]byte, error) {
 // FlushResponse have a peculiar behaviour when multiple flushes are pending.
 type FlushResponse struct {
 	Tag
-}
-
-// EncodedLength returns the length the message will be when serialized.
-func (*FlushResponse) EncodedLength() int {
-	return 2
 }
 
 func (fr *FlushResponse) UnmarshalBinary(b []byte) error {
@@ -644,15 +590,6 @@ type WalkRequest struct {
 
 	// Names are the names to try.
 	Names []string
-}
-
-// EncodedLength returns the length the message will be when serialized.
-func (wr *WalkRequest) EncodedLength() int {
-	x := 0
-	for i := range wr.Names {
-		x += 2 + len(wr.Names[i])
-	}
-	return 2 + 4 + 4 + 2 + x
 }
 
 func (wr *WalkRequest) UnmarshalBinary(b []byte) error {
@@ -711,19 +648,16 @@ type WalkResponse struct {
 	Qids []Qid
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (wr *WalkResponse) EncodedLength() int {
-	return 2 + 2 + 13*len(wr.Qids)
-}
-
 func (wr *WalkResponse) UnmarshalBinary(b []byte) error {
-	if len(b) < 2+2 {
+	t := 2 + 2
+	if len(b) < t {
 		return ErrPayloadTooShort
 	}
 
 	wr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
 	l := int(binary.LittleEndian.Uint16(b[2:4]))
-	if len(b) < 2+2+l {
+	t += l * 13
+	if len(b) < t {
 		return ErrPayloadTooShort
 	}
 	wr.Qids = make([]Qid, l)
@@ -761,11 +695,6 @@ type OpenRequest struct {
 	Mode OpenMode
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (*OpenRequest) EncodedLength() int {
-	return 2 + 4 + 1
-}
-
 func (or *OpenRequest) UnmarshalBinary(b []byte) error {
 	if len(b) < 2+4+1 {
 		return ErrPayloadTooShort
@@ -797,11 +726,6 @@ type OpenResponse struct {
 	// IOUnit is the maximum amount of data that can be read/written by a single
 	// call, or 0 for no specification.
 	IOUnit uint32
-}
-
-// EncodedLength returns the length the message will be when serialized.
-func (*OpenResponse) EncodedLength() int {
-	return 2 + 13 + 4
 }
 
 func (or *OpenResponse) UnmarshalBinary(b []byte) error {
@@ -848,11 +772,6 @@ type CreateRequest struct {
 	Mode OpenMode
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (cr *CreateRequest) EncodedLength() int {
-	return 2 + 4 + 2 + len(cr.Name) + 4 + 1
-}
-
 func (cr *CreateRequest) UnmarshalBinary(b []byte) error {
 	if len(b) < 2+4+2+len(cr.Name)+4+1 {
 		return ErrPayloadTooShort
@@ -897,11 +816,6 @@ type CreateResponse struct {
 	IOUnit uint32
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (*CreateResponse) EncodedLength() int {
-	return 2 + 13 + 4
-}
-
 func (cr *CreateResponse) UnmarshalBinary(b []byte) error {
 	if len(b) < 2+13+4 {
 		return ErrPayloadTooShort
@@ -938,11 +852,6 @@ type ReadRequest struct {
 	Count uint32
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (*ReadRequest) EncodedLength() int {
-	return 2 + 4 + 8 + 4
-}
-
 func (rr *ReadRequest) UnmarshalBinary(b []byte) error {
 	if len(b) < 2+4+8+4 {
 		return ErrPayloadTooShort
@@ -970,11 +879,6 @@ type ReadResponse struct {
 
 	// Data is the data that was read.
 	Data []byte
-}
-
-// EncodedLength returns the length the message will be when serialized.
-func (rr *ReadResponse) EncodedLength() int {
-	return 2 + 4 + len(rr.Data)
 }
 
 func (rr *ReadResponse) UnmarshalBinary(b []byte) error {
@@ -1012,11 +916,6 @@ type WriteRequest struct {
 
 	// Data is the data to write.
 	Data []byte
-}
-
-// EncodedLength returns the length the message will be when serialized.
-func (wr *WriteRequest) EncodedLength() int {
-	return 2 + 4 + 8 + 4 + len(wr.Data)
 }
 
 func (wr *WriteRequest) UnmarshalBinary(b []byte) error {
@@ -1057,11 +956,6 @@ type WriteResponse struct {
 	Count uint32
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (*WriteResponse) EncodedLength() int {
-	return 2 + 4
-}
-
 func (wr *WriteResponse) UnmarshalBinary(b []byte) error {
 	if len(b) < 2+4 {
 		return ErrPayloadTooShort
@@ -1087,11 +981,6 @@ type ClunkRequest struct {
 	Fid Fid
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (*ClunkRequest) EncodedLength() int {
-	return 2 + 4
-}
-
 func (cr *ClunkRequest) UnmarshalBinary(b []byte) error {
 	if len(b) < 2+4 {
 		return ErrPayloadTooShort
@@ -1112,11 +1001,6 @@ func (cr *ClunkRequest) MarshalBinary() ([]byte, error) {
 // ClunkResponse indicates a successful clunk.
 type ClunkResponse struct {
 	Tag
-}
-
-// EncodedLength returns the length the message will be when serialized.
-func (*ClunkResponse) EncodedLength() int {
-	return 2
 }
 
 func (cr *ClunkResponse) UnmarshalBinary(b []byte) error {
@@ -1142,11 +1026,6 @@ type RemoveRequest struct {
 	Fid Fid
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (*RemoveRequest) EncodedLength() int {
-	return 2 + 4
-}
-
 func (rr *RemoveRequest) UnmarshalBinary(b []byte) error {
 	if len(b) < 2+4 {
 		return ErrPayloadTooShort
@@ -1167,11 +1046,6 @@ func (rr *RemoveRequest) MarshalBinary() ([]byte, error) {
 // RemoveResponse indicates a successful clunk, but not necessarily a successful remove.
 type RemoveResponse struct {
 	Tag
-}
-
-// EncodedLength returns the length the message will be when serialized.
-func (*RemoveResponse) EncodedLength() int {
-	return 2
 }
 
 func (rr *RemoveResponse) UnmarshalBinary(b []byte) error {
@@ -1197,11 +1071,6 @@ type StatRequest struct {
 	Fid Fid
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (*StatRequest) EncodedLength() int {
-	return 2 + 4
-}
-
 func (sr *StatRequest) UnmarshalBinary(b []byte) error {
 	if len(b) < 2+4 {
 		return ErrPayloadTooShort
@@ -1225,11 +1094,6 @@ type StatResponse struct {
 
 	// Stat is the requested Stat struct.
 	Stat Stat
-}
-
-// EncodedLength returns the length the message will be when serialized.
-func (sr *StatResponse) EncodedLength() int {
-	return 2 + 2 + sr.Stat.EncodedLength()
 }
 
 func (sr *StatResponse) UnmarshalBinary(b []byte) error {
@@ -1272,11 +1136,6 @@ type WriteStatRequest struct {
 	Stat Stat
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (wsr *WriteStatRequest) EncodedLength() int {
-	return 2 + 4 + 2 + wsr.Stat.EncodedLength()
-}
-
 func (wsr *WriteStatRequest) UnmarshalBinary(b []byte) error {
 	if len(b) < 2+4+2 {
 		return ErrPayloadTooShort
@@ -1304,11 +1163,6 @@ func (wsr *WriteStatRequest) MarshalBinary() ([]byte, error) {
 // WriteStatResponse indicates a successful application of a Stat structure.
 type WriteStatResponse struct {
 	Tag
-}
-
-// EncodedLength returns the length the message will be when serialized.
-func (*WriteStatResponse) EncodedLength() int {
-	return 2
 }
 
 func (wsr *WriteStatResponse) UnmarshalBinary(b []byte) error {

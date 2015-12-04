@@ -26,7 +26,6 @@ type MessageType byte
 type Message interface {
 	encoding.BinaryUnmarshaler
 	encoding.BinaryMarshaler
-	EncodedLength() int
 	GetTag() Tag
 }
 

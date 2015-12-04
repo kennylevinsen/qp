@@ -1,6 +1,6 @@
 package qp
 
-import "io"
+import "encoding/binary"
 
 // NineP2000Dotu implements 9P2000.u encoding and decoding. 9P2000.u is meant
 // as a unix compatibility extension. 9P is designed for Plan9, and as thus
@@ -82,123 +82,134 @@ type StatDotu struct {
 	MUIDno uint32
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (s *StatDotu) EncodedLength() int {
-	return 2 + 2 + 4 + 13 + 4 + 4 + 4 + 8 + 8 + len(s.Name) + len(s.UID) + len(s.GID) + len(s.MUID) + 2 + len(s.Extensions) + 4 + 4 + 4
-}
+func (s *StatDotu) UnmarshalBinary(b []byte) error {
+	t := 2 + 2 + 4 + 13 + 4 + 4 + 4 + 8 + 2 + 2 + 2 + 2 + 2 + 4 + 4 + 4
+	if len(b) < t {
+		return ErrPayloadTooShort
+	}
 
-// Decode decodes a stream into the message.
-func (s *StatDotu) Decode(r io.Reader) error {
-	var err error
+	// Well then, let's get started...
+	s.Type = binary.LittleEndian.Uint16(b[2:4])
+	s.Dev = binary.LittleEndian.Uint32(b[4:8])
 
-	// We have no use of this length
-	if _, err = readUint16(r); err != nil {
-		return err
+	// Decode the qid
+	s.Qid.Type = QidType(b[8])
+	s.Qid.Version = binary.LittleEndian.Uint32(b[9:13])
+	s.Qid.Path = binary.LittleEndian.Uint64(b[13:21])
+
+	// More of the main struct
+	s.Mode = FileMode(binary.LittleEndian.Uint32(b[21:25]))
+	s.Atime = binary.LittleEndian.Uint32(b[25:29])
+	s.Mtime = binary.LittleEndian.Uint32(b[29:33])
+	s.Length = binary.LittleEndian.Uint64(b[33:41])
+
+	// And now the variable part.
+
+	// Name
+	idx := 41
+	l := int(binary.LittleEndian.Uint16(b[idx : idx+2]))
+	if len(b) < t+l {
+		return ErrPayloadTooShort
 	}
-	if s.Type, err = readUint16(r); err != nil {
-		return err
+	s.Name = string(b[idx+2 : idx+2+l])
+	idx += 2 + l
+	t += l
+
+	// UID
+	l = int(binary.LittleEndian.Uint16(b[idx : idx+2]))
+	if len(b) < t+int(l) {
+		return ErrPayloadTooShort
 	}
-	if s.Dev, err = readUint32(r); err != nil {
-		return err
+	s.UID = string(b[idx+2 : idx+2+l])
+	idx += 2 + l
+	t += l
+
+	// GID
+	l = int(binary.LittleEndian.Uint16(b[idx : idx+2]))
+	if len(b) < t+l {
+		return ErrPayloadTooShort
 	}
-	if err = s.Qid.Decode(r); err != nil {
-		return err
+	s.GID = string(b[idx+2 : idx+2+l])
+	idx += 2 + l
+	t += l
+
+	// MUID
+	l = int(binary.LittleEndian.Uint16(b[idx : idx+2]))
+	if len(b) < t+l {
+		return ErrPayloadTooShort
 	}
-	if s.Mode, err = readFileMode(r); err != nil {
-		return err
+	s.MUID = string(b[idx+2 : idx+2+l])
+	idx += 2 + l
+	t += l
+
+	// Extensions
+	l = int(binary.LittleEndian.Uint16(b[idx : idx+2]))
+	if len(b) < t+l {
+		return ErrPayloadTooShort
 	}
-	if s.Atime, err = readUint32(r); err != nil {
-		return err
-	}
-	if s.Mtime, err = readUint32(r); err != nil {
-		return err
-	}
-	if s.Length, err = readUint64(r); err != nil {
-		return err
-	}
-	if s.Name, err = readString(r); err != nil {
-		return err
-	}
-	if s.UID, err = readString(r); err != nil {
-		return err
-	}
-	if s.GID, err = readString(r); err != nil {
-		return err
-	}
-	if s.MUID, err = readString(r); err != nil {
-		return err
-	}
-	if s.Extensions, err = readString(r); err != nil {
-		return err
-	}
-	if s.UIDno, err = readUint32(r); err != nil {
-		return err
-	}
-	if s.GIDno, err = readUint32(r); err != nil {
-		return err
-	}
-	if s.MUIDno, err = readUint32(r); err != nil {
-		return err
-	}
+	s.Extensions = string(b[idx+2 : idx+2+l])
+	idx += 2 + l
+
+	// UIDno, GIDno, MUIDno
+	s.UIDno = binary.LittleEndian.Uint32(b[idx : idx+4])
+	s.GIDno = binary.LittleEndian.Uint32(b[idx+4 : idx+8])
+	s.MUIDno = binary.LittleEndian.Uint32(b[idx+8 : idx+12])
 	return nil
 }
 
-// Encode encodes the message into a stream.
-func (s *StatDotu) Encode(w io.Writer) error {
-	var err error
+func (s *StatDotu) MarshalBinary() ([]byte, error) {
+	l := 2 + 2 + 4 + 13 + 4 + 4 + 4 + 8 + 2 + 2 + 2 + 2 + 2 + 4 + 4 + 4 + len(s.Name) + len(s.UID) + len(s.GID) + len(s.MUID) + len(s.Extensions)
+	b := make([]byte, l)
+	binary.LittleEndian.PutUint16(b[0:2], uint16(l-2))
+	binary.LittleEndian.PutUint16(b[2:4], s.Type)
+	binary.LittleEndian.PutUint32(b[4:8], s.Dev)
 
-	l := uint16(s.EncodedLength() - 2)
+	// Qid
+	b[8] = byte(s.Qid.Type)
+	binary.LittleEndian.PutUint32(b[9:13], s.Qid.Version)
+	binary.LittleEndian.PutUint64(b[13:21], s.Qid.Path)
+	binary.LittleEndian.PutUint32(b[21:25], uint32(s.Mode))
+	binary.LittleEndian.PutUint32(b[25:29], s.Atime)
+	binary.LittleEndian.PutUint32(b[29:33], s.Mtime)
+	binary.LittleEndian.PutUint64(b[33:41], s.Length)
 
-	if err = writeUint16(w, l); err != nil {
-		return err
-	}
-	if err = writeUint16(w, s.Type); err != nil {
-		return err
-	}
-	if err = writeUint32(w, s.Dev); err != nil {
-		return err
-	}
-	if err = s.Qid.Encode(w); err != nil {
-		return err
-	}
-	if err = writeFileMode(w, s.Mode); err != nil {
-		return err
-	}
-	if err = writeUint32(w, s.Atime); err != nil {
-		return err
-	}
-	if err = writeUint32(w, s.Mtime); err != nil {
-		return err
-	}
-	if err = writeUint64(w, s.Length); err != nil {
-		return err
-	}
-	if err = writeString(w, s.Name); err != nil {
-		return err
-	}
-	if err = writeString(w, s.UID); err != nil {
-		return err
-	}
-	if err = writeString(w, s.GID); err != nil {
-		return err
-	}
-	if err = writeString(w, s.MUID); err != nil {
-		return err
-	}
-	if err = writeString(w, s.Extensions); err != nil {
-		return err
-	}
-	if err = writeUint32(w, s.UIDno); err != nil {
-		return err
-	}
-	if err = writeUint32(w, s.GIDno); err != nil {
-		return err
-	}
-	if err = writeUint32(w, s.MUIDno); err != nil {
-		return err
-	}
-	return nil
+	// Variable things
+	// Name
+	idx := 41
+	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(s.Name)))
+	idx += 2
+	copy(b[idx:], []byte(s.Name))
+	idx += len(s.Name)
 
+	// UID
+	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(s.UID)))
+	idx += 2
+	copy(b[idx:], []byte(s.UID))
+	idx += len(s.UID)
+
+	// GID
+	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(s.GID)))
+	idx += 2
+	copy(b[idx:], []byte(s.GID))
+	idx += len(s.GID)
+
+	// MUID
+	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(s.MUID)))
+	idx += 2
+	copy(b[idx:], []byte(s.MUID))
+	idx += len(s.MUID)
+
+	// Extensions
+	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(s.Extensions)))
+	idx += 2
+	copy(b[idx:], []byte(s.Extensions))
+	idx += len(s.Extensions)
+
+	// UIDno, GIDno, MUIDno
+	binary.LittleEndian.PutUint32(b[idx:idx+4], s.UIDno)
+	binary.LittleEndian.PutUint32(b[idx+4:idx+8], s.GIDno)
+	binary.LittleEndian.PutUint32(b[idx+8:idx+12], s.MUIDno)
+	return b, nil
 }
 
 // AuthRequestDotu is the 9P2000.u version of AuthRequestDotu. It adds UIDno,
@@ -220,51 +231,44 @@ type AuthRequestDotu struct {
 	UIDno uint32
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (ar *AuthRequestDotu) EncodedLength() int {
-	return 2 + 4 + 2 + len(ar.Username) + 2 + len(ar.Service) + 4
-}
-
-// Decode decodes a stream into the message.
-func (ar *AuthRequestDotu) Decode(r io.Reader) error {
-	var err error
-	if ar.Tag, err = readTag(r); err != nil {
-		return err
+func (ar *AuthRequestDotu) UnmarshalBinary(b []byte) error {
+	t := 2 + 4 + 2 + 2 + 4
+	if len(b) < t {
+		return ErrPayloadTooShort
 	}
-	if ar.AuthFid, err = readFid(r); err != nil {
-		return err
+	ar.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
+	ar.AuthFid = Fid(binary.LittleEndian.Uint32(b[2:6]))
+	l := int(binary.LittleEndian.Uint16(b[6:8]))
+	t += l
+	if len(b) < t {
+		return ErrPayloadTooShort
 	}
-	if ar.Username, err = readString(r); err != nil {
-		return err
+	ar.Username = string(b[8 : 8+l])
+	idx := 8 + l
+	l = int(binary.LittleEndian.Uint16(b[idx : idx+2]))
+	t += l
+	if len(b) < t {
+		return ErrPayloadTooShort
 	}
-	if ar.Service, err = readString(r); err != nil {
-		return err
-	}
-	if ar.UIDno, err = readUint32(r); err != nil {
-		return err
-	}
+	ar.Service = string(b[idx+2 : idx+2+l])
+	ar.UIDno = binary.LittleEndian.Uint32(b[idx+2+l : idx+2+l+4])
 	return nil
 }
 
-// Encode encodes the message into a stream.
-func (ar *AuthRequestDotu) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, ar.Tag); err != nil {
-		return err
-	}
-	if err = writeFid(w, ar.AuthFid); err != nil {
-		return err
-	}
-	if err = writeString(w, ar.Username); err != nil {
-		return err
-	}
-	if err = writeString(w, ar.Service); err != nil {
-		return err
-	}
-	if err = writeUint32(w, ar.UIDno); err != nil {
-		return err
-	}
-	return nil
+func (ar *AuthRequestDotu) MarshalBinary() ([]byte, error) {
+	b := make([]byte, 2+4+2+len(ar.Username)+2+len(ar.Service)+4)
+	binary.LittleEndian.PutUint16(b[0:2], uint16(ar.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(ar.AuthFid))
+
+	binary.LittleEndian.PutUint16(b[6:8], uint16(len(ar.Username)))
+	copy(b[8:], []byte(ar.Username))
+	idx := 8 + len(ar.Username)
+
+	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(ar.Service)))
+	copy(b[idx+2:], []byte(ar.Service))
+	idx += 2 + len(ar.Service)
+	binary.LittleEndian.PutUint32(b[idx:idx+4], ar.UIDno)
+	return b, nil
 }
 
 // AttachRequestDotu is the 9P2000.u version of AttachRequestDotu. It adds
@@ -290,57 +294,46 @@ type AttachRequestDotu struct {
 	UIDno uint32
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (ar *AttachRequestDotu) EncodedLength() int {
-	return 2 + 4 + 4 + 2 + len(ar.Username) + 2 + len(ar.Service) + 4
-}
-
-// Decode decodes a stream into the message.
-func (ar *AttachRequestDotu) Decode(r io.Reader) error {
-	var err error
-	if ar.Tag, err = readTag(r); err != nil {
-		return err
+func (ar *AttachRequestDotu) UnmarshalBinary(b []byte) error {
+	t := 2 + 4 + 4 + 2 + 2 + 4
+	if len(b) < t {
+		return ErrPayloadTooShort
 	}
-	if ar.Fid, err = readFid(r); err != nil {
-		return err
+	ar.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
+	ar.Fid = Fid(binary.LittleEndian.Uint32(b[2:6]))
+	ar.AuthFid = Fid(binary.LittleEndian.Uint32(b[6:10]))
+	l := int(binary.LittleEndian.Uint16(b[10:12]))
+	t += l
+	if len(b) < t {
+		return ErrPayloadTooShort
 	}
-	if ar.AuthFid, err = readFid(r); err != nil {
-		return err
+	ar.Username = string(b[12 : 12+l])
+	idx := 12 + l
+	l = int(binary.LittleEndian.Uint16(b[idx : idx+2]))
+	t += l
+	if len(b) < t {
+		return ErrPayloadTooShort
 	}
-	if ar.Username, err = readString(r); err != nil {
-		return err
-	}
-	if ar.Service, err = readString(r); err != nil {
-		return err
-	}
-	if ar.UIDno, err = readUint32(r); err != nil {
-		return err
-	}
+	ar.Service = string(b[idx+2 : idx+2+l])
+	ar.UIDno = binary.LittleEndian.Uint32(b[idx+2+l : idx+2+l+4])
 	return nil
 }
 
-// Encode encodes the message into a stream.
-func (ar *AttachRequestDotu) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, ar.Tag); err != nil {
-		return err
-	}
-	if err = writeFid(w, ar.Fid); err != nil {
-		return err
-	}
-	if err = writeFid(w, ar.AuthFid); err != nil {
-		return err
-	}
-	if err = writeString(w, ar.Username); err != nil {
-		return err
-	}
-	if err = writeString(w, ar.Service); err != nil {
-		return err
-	}
-	if err = writeUint32(w, ar.UIDno); err != nil {
-		return err
-	}
-	return nil
+func (ar *AttachRequestDotu) MarshalBinary() ([]byte, error) {
+	b := make([]byte, 2+4+4+2+len(ar.Username)+2+len(ar.Service)+4)
+	binary.LittleEndian.PutUint16(b[0:2], uint16(ar.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(ar.Fid))
+	binary.LittleEndian.PutUint32(b[6:10], uint32(ar.AuthFid))
+
+	binary.LittleEndian.PutUint16(b[10:12], uint16(len(ar.Username)))
+	copy(b[12:], []byte(ar.Username))
+	idx := 12 + len(ar.Username)
+
+	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(ar.Service)))
+	copy(b[idx+2:], []byte(ar.Service))
+	idx += 2 + len(ar.Service)
+	binary.LittleEndian.PutUint32(b[idx:idx+4], ar.UIDno)
+	return b, nil
 }
 
 // ErrorResponseDotu is the 9P2000.u version of ErrorResponse. It adds Errno
@@ -356,39 +349,30 @@ type ErrorResponseDotu struct {
 	Errno uint32
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (er *ErrorResponseDotu) EncodedLength() int {
-	return 2 + 2 + len(er.Error) + 4
-}
-
-// Decode decodes a stream into the message.
-func (er *ErrorResponseDotu) Decode(r io.Reader) error {
-	var err error
-	if er.Tag, err = readTag(r); err != nil {
-		return err
+func (er *ErrorResponseDotu) UnmarshalBinary(b []byte) error {
+	t := 2 + 2 + 4
+	if len(b) < t {
+		return ErrPayloadTooShort
 	}
-	if er.Error, err = readString(r); err != nil {
-		return err
+	er.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
+	l := int(binary.LittleEndian.Uint16(b[2:4]))
+	t += l
+	if len(b) < t {
+		return ErrPayloadTooShort
 	}
-	if er.Errno, err = readUint32(r); err != nil {
-		return err
-	}
+	er.Error = string(b[4 : 4+l])
+	er.Errno = binary.LittleEndian.Uint32(b[4+l : 4+l+4])
 	return nil
 }
 
-// Encode encodes the message into a stream.
-func (er *ErrorResponseDotu) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, er.Tag); err != nil {
-		return err
-	}
-	if err = writeString(w, er.Error); err != nil {
-		return err
-	}
-	if err = writeUint32(w, er.Errno); err != nil {
-		return err
-	}
-	return nil
+func (er *ErrorResponseDotu) MarshalBinary() ([]byte, error) {
+	b := make([]byte, 2+2+len(er.Error)+4)
+	binary.LittleEndian.PutUint16(b[0:2], uint16(er.Tag))
+	binary.LittleEndian.PutUint16(b[2:4], uint16(len(er.Error)))
+	copy(b[4:], []byte(er.Error))
+	idx := 4 + len(er.Error)
+	binary.LittleEndian.PutUint32(b[idx:idx+4], er.Errno)
+	return b, nil
 }
 
 // CreateRequestDotu is the 9P2000.u version of CreateRequest. It adds
@@ -413,57 +397,41 @@ type CreateRequestDotu struct {
 	Extensions string
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (cr *CreateRequestDotu) EncodedLength() int {
-	return 2 + 4 + 2 + len(cr.Name) + 4 + 1 + 2 + len(cr.Extensions)
-}
-
-// Decode decodes a stream into the message.
-func (cr *CreateRequestDotu) Decode(r io.Reader) error {
-	var err error
-	if cr.Tag, err = readTag(r); err != nil {
-		return err
+func (cr *CreateRequestDotu) UnmarshalBinary(b []byte) error {
+	if len(b) < 2+4+2+len(cr.Name)+4+1+2+len(cr.Extensions) {
+		return ErrPayloadTooShort
 	}
-	if cr.Fid, err = readFid(r); err != nil {
-		return err
-	}
-	if cr.Name, err = readString(r); err != nil {
-		return err
-	}
-	if cr.Permissions, err = readFileMode(r); err != nil {
-		return err
-	}
-	if cr.Mode, err = readOpenMode(r); err != nil {
-		return err
-	}
-	if cr.Extensions, err = readString(r); err != nil {
-		return err
-	}
+	cr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
+	cr.Fid = Fid(binary.LittleEndian.Uint32(b[2:6]))
+	l := int(binary.LittleEndian.Uint16(b[6:8]))
+	idx := 8
+	cr.Name = string(b[idx : idx+l])
+	idx += l
+	cr.Permissions = FileMode(binary.LittleEndian.Uint32(b[idx : idx+4]))
+	cr.Mode = OpenMode(b[idx+4])
+	idx += 5
+	l = int(binary.LittleEndian.Uint16(b[idx : idx+2]))
+	cr.Extensions = string(b[idx+2 : idx+2+l])
 	return nil
 }
 
-// Encode encodes the message into a stream.
-func (cr *CreateRequestDotu) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, cr.Tag); err != nil {
-		return err
-	}
-	if err = writeFid(w, cr.Fid); err != nil {
-		return err
-	}
-	if err = writeString(w, cr.Name); err != nil {
-		return err
-	}
-	if err = writeFileMode(w, cr.Permissions); err != nil {
-		return err
-	}
-	if err = writeOpenMode(w, cr.Mode); err != nil {
-		return err
-	}
-	if err = writeString(w, cr.Extensions); err != nil {
-		return err
-	}
-	return nil
+func (cr *CreateRequestDotu) MarshalBinary() ([]byte, error) {
+	b := make([]byte, 2+4+2+len(cr.Name)+4+1+2+len(cr.Extensions))
+	binary.LittleEndian.PutUint16(b[0:2], uint16(cr.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(cr.Fid))
+	binary.LittleEndian.PutUint16(b[6:8], uint16(len(cr.Name)))
+
+	idx := 8
+	copy(b[idx:idx+len(cr.Name)], []byte(cr.Name))
+	idx += len(cr.Name)
+
+	binary.LittleEndian.PutUint32(b[idx:idx+4], uint32(cr.Permissions))
+	b[idx+4] = byte(cr.Mode)
+	idx += 5
+
+	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(cr.Extensions)))
+	copy(b[idx+2:], []byte(cr.Extensions))
+	return b, nil
 }
 
 // StatResponseDotu is the 9P2000.u version of StatResponse. It uses a
@@ -475,45 +443,26 @@ type StatResponseDotu struct {
 	Stat StatDotu
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (sr *StatResponseDotu) EncodedLength() int {
-	return 2 + 2 + sr.Stat.EncodedLength()
+func (sr *StatResponseDotu) UnmarshalBinary(b []byte) error {
+	if len(b) < 2+2 {
+		return ErrPayloadTooShort
+	}
+
+	sr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
+	return sr.Stat.UnmarshalBinary(b[4:])
 }
 
-// Decode decodes a stream into the message.
-func (sr *StatResponseDotu) Decode(r io.Reader) error {
-	var err error
-	if sr.Tag, err = readTag(r); err != nil {
-		return err
+func (sr *StatResponseDotu) MarshalBinary() ([]byte, error) {
+	x, err := sr.Stat.MarshalBinary()
+	if err != nil {
+		return nil, err
 	}
 
-	// We don't need this
-	if _, err = readUint16(r); err != nil {
-		return err
-	}
-
-	if err = sr.Stat.Decode(r); err != nil {
-		return err
-	}
-	return nil
-}
-
-// Encode encodes the message into a stream.
-func (sr *StatResponseDotu) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, sr.Tag); err != nil {
-		return err
-	}
-
-	if err = writeUint16(w, uint16(sr.Stat.EncodedLength())); err != nil {
-		return err
-	}
-
-	if err = sr.Stat.Encode(w); err != nil {
-		return err
-	}
-
-	return nil
+	b := make([]byte, 2+2+len(x))
+	binary.LittleEndian.PutUint16(b[0:2], uint16(sr.Tag))
+	binary.LittleEndian.PutUint16(b[2:4], uint16(len(x)))
+	copy(b[4:], x)
+	return b, nil
 }
 
 // WriteStatRequestDotu is the 9P2000.u version of WriteStatRequest. It uses a
@@ -528,46 +477,26 @@ type WriteStatRequestDotu struct {
 	Stat StatDotu
 }
 
-// EncodedLength returns the length the message will be when serialized.
-func (wsr *WriteStatRequestDotu) EncodedLength() int {
-	return 2 + 4 + 2 + wsr.Stat.EncodedLength()
+func (wsr *WriteStatRequestDotu) UnmarshalBinary(b []byte) error {
+	if len(b) < 2+4+2 {
+		return ErrPayloadTooShort
+	}
+
+	wsr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
+	wsr.Fid = Fid(binary.LittleEndian.Uint32(b[2:6]))
+	return wsr.Stat.UnmarshalBinary(b[8:])
 }
 
-// Decode decodes a stream into the message.
-func (wsr *WriteStatRequestDotu) Decode(r io.Reader) error {
-	var err error
-	if wsr.Tag, err = readTag(r); err != nil {
-		return err
-	}
-	if wsr.Fid, err = readFid(r); err != nil {
-		return err
+func (wsr *WriteStatRequestDotu) MarshalBinary() ([]byte, error) {
+	x, err := wsr.Stat.MarshalBinary()
+	if err != nil {
+		return nil, err
 	}
 
-	// We don't need the stat size
-	if _, err = readUint16(r); err != nil {
-		return err
-	}
-
-	if err = wsr.Stat.Decode(r); err != nil {
-		return err
-	}
-	return nil
-}
-
-// Encode encodes the message into a stream.
-func (wsr *WriteStatRequestDotu) Encode(w io.Writer) error {
-	var err error
-	if err = writeTag(w, wsr.Tag); err != nil {
-		return err
-	}
-	if err = writeFid(w, wsr.Fid); err != nil {
-		return err
-	}
-	if err = writeUint16(w, uint16(wsr.Stat.EncodedLength())); err != nil {
-		return err
-	}
-	if err = wsr.Stat.Encode(w); err != nil {
-		return err
-	}
-	return nil
+	b := make([]byte, 2+4+2+len(x))
+	binary.LittleEndian.PutUint16(b[0:2], uint16(wsr.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(wsr.Fid))
+	binary.LittleEndian.PutUint16(b[6:8], uint16(len(x)))
+	copy(b[8:], x)
+	return b, nil
 }

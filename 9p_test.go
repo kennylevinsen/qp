@@ -12,47 +12,41 @@ type binaryBothWayer interface {
 	encoding.BinaryUnmarshaler
 }
 
-type codec interface {
-	EncodedLength() int
-	encoding.BinaryMarshaler
-	encoding.BinaryUnmarshaler
-}
-
 // Test if the types live up to their interface
 var (
 	_ binaryBothWayer = (*Qid)(nil)
 	_ binaryBothWayer = (*Stat)(nil)
-	_ binaryBothWayer = (*VersionRequest)(nil)
-	_ binaryBothWayer = (*VersionResponse)(nil)
-	_ binaryBothWayer = (*AuthRequest)(nil)
-	_ binaryBothWayer = (*AuthResponse)(nil)
-	_ binaryBothWayer = (*AttachRequest)(nil)
-	_ binaryBothWayer = (*AttachResponse)(nil)
-	_ binaryBothWayer = (*ErrorResponse)(nil)
-	_ binaryBothWayer = (*FlushRequest)(nil)
-	_ binaryBothWayer = (*FlushResponse)(nil)
-	_ binaryBothWayer = (*WalkRequest)(nil)
-	_ binaryBothWayer = (*WalkResponse)(nil)
-	_ binaryBothWayer = (*OpenRequest)(nil)
-	_ binaryBothWayer = (*OpenResponse)(nil)
-	_ binaryBothWayer = (*CreateRequest)(nil)
-	_ binaryBothWayer = (*CreateResponse)(nil)
-	_ binaryBothWayer = (*ReadRequest)(nil)
-	_ binaryBothWayer = (*ReadResponse)(nil)
-	_ binaryBothWayer = (*WriteRequest)(nil)
-	_ binaryBothWayer = (*WriteResponse)(nil)
-	_ binaryBothWayer = (*ClunkRequest)(nil)
-	_ binaryBothWayer = (*ClunkResponse)(nil)
-	_ binaryBothWayer = (*RemoveRequest)(nil)
-	_ binaryBothWayer = (*RemoveResponse)(nil)
-	_ binaryBothWayer = (*StatRequest)(nil)
-	_ binaryBothWayer = (*StatResponse)(nil)
-	_ binaryBothWayer = (*WriteStatRequest)(nil)
-	_ binaryBothWayer = (*WriteStatResponse)(nil)
+	_ Message         = (*VersionRequest)(nil)
+	_ Message         = (*VersionResponse)(nil)
+	_ Message         = (*AuthRequest)(nil)
+	_ Message         = (*AuthResponse)(nil)
+	_ Message         = (*AttachRequest)(nil)
+	_ Message         = (*AttachResponse)(nil)
+	_ Message         = (*ErrorResponse)(nil)
+	_ Message         = (*FlushRequest)(nil)
+	_ Message         = (*FlushResponse)(nil)
+	_ Message         = (*WalkRequest)(nil)
+	_ Message         = (*WalkResponse)(nil)
+	_ Message         = (*OpenRequest)(nil)
+	_ Message         = (*OpenResponse)(nil)
+	_ Message         = (*CreateRequest)(nil)
+	_ Message         = (*CreateResponse)(nil)
+	_ Message         = (*ReadRequest)(nil)
+	_ Message         = (*ReadResponse)(nil)
+	_ Message         = (*WriteRequest)(nil)
+	_ Message         = (*WriteResponse)(nil)
+	_ Message         = (*ClunkRequest)(nil)
+	_ Message         = (*ClunkResponse)(nil)
+	_ Message         = (*RemoveRequest)(nil)
+	_ Message         = (*RemoveResponse)(nil)
+	_ Message         = (*StatRequest)(nil)
+	_ Message         = (*StatResponse)(nil)
+	_ Message         = (*WriteStatRequest)(nil)
+	_ Message         = (*WriteStatResponse)(nil)
 )
 
 var tests = []struct {
-	in        codec
+	in        interface{}
 	reference []byte
 }{
 	{
@@ -267,11 +261,11 @@ var tests = []struct {
 	},
 }
 
-func reencode(i int, in codec, reference []byte, t *testing.T, p Protocol) {
+func reencode(i int, in interface{}, reference []byte, t *testing.T, p Protocol) {
 	var (
 		buf   = new(bytes.Buffer)
 		s     []byte
-		other codec
+		other interface{}
 		err   error
 	)
 
@@ -295,20 +289,21 @@ func reencode(i int, in codec, reference []byte, t *testing.T, p Protocol) {
 			return
 		}
 	} else {
-		if s, err = in.MarshalBinary(); err != nil {
+		if s, err = in.(binaryBothWayer).MarshalBinary(); err != nil {
 			t.Errorf("test %d: encoding failed for %v: %v", i, inputType, err)
 			return
 		}
 		if bytes.Compare(s, reference) != 0 {
-			t.Errorf("test %d: binary representation not equal to reference for %v:\n\tExpected: %v\n\tGot:      %v", i, inputType, reference, buf.Bytes())
+			t.Errorf("test %d: binary representation not equal to reference for %v:\n\tExpected: %v\n\tGot:      %v", i, inputType, reference, s)
 			return
 		}
 		// Magic to construct a new codec of the input type
-		other = reflect.New(inputType).Interface().(codec)
-		if err = other.UnmarshalBinary(s); err != nil {
+		x := reflect.New(inputType).Interface().(binaryBothWayer)
+		if err = x.UnmarshalBinary(s); err != nil {
 			t.Errorf("test %d: decoding failed for %v: %v", i, inputType, err)
 			return
 		}
+		other = x
 	}
 
 	// Comparing the interfaces would result in pointer comparisons, so get the basic type first
@@ -317,9 +312,37 @@ func reencode(i int, in codec, reference []byte, t *testing.T, p Protocol) {
 	}
 }
 
+func testUnmarshal(t *testing.T, i int, r binaryBothWayer, x []byte) {
+	defer func() {
+		if rr := recover(); rr != nil {
+			t.Errorf("test %d: short unmarshal for %T at length %d panicked: %v", i, r, len(x), rr)
+		}
+	}()
+	var err error
+	for len(x) > 0 {
+		err = r.UnmarshalBinary(x)
+		if err != ErrPayloadTooShort {
+			t.Errorf("test %d: short unmarshal for %T at length %d did not fail as expected: %v", i, r, len(x), err)
+			return
+		}
+		x = x[:len(x)-1]
+	}
+}
+
 // This test does NOT guarantee proper 9P2000 spec coding, but ensures at least
 // that all codecs are compatible with themselves.
 func TestReencode(t *testing.T) {
+	for i, tt := range tests {
+		r := reflect.New(reflect.ValueOf(tt.in).Elem().Type()).Interface().(binaryBothWayer)
+		x := make([]byte, len(tt.reference)-6)
+		copy(x, tt.reference[5:])
+		testUnmarshal(t, i, r, x)
+	}
+}
+
+// This test does NOT guarantee proper 9P2000 spec coding, but ensures at least
+// that all codecs are compatible with themselves.
+func TestUnmarshalError(t *testing.T) {
 	for i, tt := range tests {
 		reencode(i, tt.in, tt.reference, t, NineP2000)
 	}
