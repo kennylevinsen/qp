@@ -302,12 +302,14 @@ func (ar *AttachRequestDotu) UnmarshalBinary(b []byte) error {
 	ar.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
 	ar.Fid = Fid(binary.LittleEndian.Uint32(b[2:6]))
 	ar.AuthFid = Fid(binary.LittleEndian.Uint32(b[6:10]))
+
 	l := int(binary.LittleEndian.Uint16(b[10:12]))
 	t += l
 	if len(b) < t {
 		return ErrPayloadTooShort
 	}
 	ar.Username = string(b[12 : 12+l])
+
 	idx := 12 + l
 	l = int(binary.LittleEndian.Uint16(b[idx : idx+2]))
 	t += l
@@ -315,6 +317,7 @@ func (ar *AttachRequestDotu) UnmarshalBinary(b []byte) error {
 		return ErrPayloadTooShort
 	}
 	ar.Service = string(b[idx+2 : idx+2+l])
+
 	ar.UIDno = binary.LittleEndian.Uint32(b[idx+2+l : idx+2+l+4])
 	return nil
 }
@@ -332,6 +335,7 @@ func (ar *AttachRequestDotu) MarshalBinary() ([]byte, error) {
 	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(ar.Service)))
 	copy(b[idx+2:], []byte(ar.Service))
 	idx += 2 + len(ar.Service)
+
 	binary.LittleEndian.PutUint32(b[idx:idx+4], ar.UIDno)
 	return b, nil
 }
@@ -355,13 +359,16 @@ func (er *ErrorResponseDotu) UnmarshalBinary(b []byte) error {
 		return ErrPayloadTooShort
 	}
 	er.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
-	l := int(binary.LittleEndian.Uint16(b[2:4]))
+
+	idx := 2
+	l := int(binary.LittleEndian.Uint16(b[idx : idx+2]))
 	t += l
 	if len(b) < t {
 		return ErrPayloadTooShort
 	}
-	er.Error = string(b[4 : 4+l])
-	er.Errno = binary.LittleEndian.Uint32(b[4+l : 4+l+4])
+	er.Error = string(b[idx+2 : idx+2+l])
+	idx += 2 + l
+	er.Errno = binary.LittleEndian.Uint32(b[idx : idx+4])
 	return nil
 }
 
@@ -398,19 +405,31 @@ type CreateRequestDotu struct {
 }
 
 func (cr *CreateRequestDotu) UnmarshalBinary(b []byte) error {
-	if len(b) < 2+4+2+len(cr.Name)+4+1+2+len(cr.Extensions) {
+	t := 2 + 4 + 2 + 4 + 1 + 2
+	if len(b) < t {
 		return ErrPayloadTooShort
 	}
 	cr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
 	cr.Fid = Fid(binary.LittleEndian.Uint32(b[2:6]))
-	l := int(binary.LittleEndian.Uint16(b[6:8]))
-	idx := 8
+
+	idx := 6
+	l := int(binary.LittleEndian.Uint16(b[idx : idx+2]))
+	t += l
+	if len(b) < t {
+		return ErrPayloadTooShort
+	}
 	cr.Name = string(b[idx : idx+l])
 	idx += l
+
 	cr.Permissions = FileMode(binary.LittleEndian.Uint32(b[idx : idx+4]))
 	cr.Mode = OpenMode(b[idx+4])
+
 	idx += 5
 	l = int(binary.LittleEndian.Uint16(b[idx : idx+2]))
+	t += l
+	if len(b) < t {
+		return ErrPayloadTooShort
+	}
 	cr.Extensions = string(b[idx+2 : idx+2+l])
 	return nil
 }

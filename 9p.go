@@ -267,13 +267,15 @@ type VersionRequest struct {
 }
 
 func (vr *VersionRequest) UnmarshalBinary(b []byte) error {
-	if len(b) < 2+4+2 {
+	t := 2 + 4 + 2
+	if len(b) < t {
 		return ErrPayloadTooShort
 	}
 	vr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
 	vr.MaxSize = binary.LittleEndian.Uint32(b[2:6])
 	l := int(binary.LittleEndian.Uint16(b[6:8]))
-	if len(b) < 2+4+2+l {
+	t += l
+	if len(b) < t {
 		return ErrPayloadTooShort
 	}
 	vr.Version = string(b[8 : 8+l])
@@ -307,13 +309,15 @@ type VersionResponse struct {
 }
 
 func (vr *VersionResponse) UnmarshalBinary(b []byte) error {
-	if len(b) < 2+4+2 {
+	t := 2 + 4 + 2
+	if len(b) < t {
 		return ErrPayloadTooShort
 	}
 	vr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
 	vr.MaxSize = binary.LittleEndian.Uint32(b[2:6])
 	l := int(binary.LittleEndian.Uint16(b[6:8]))
-	if len(b) < 2+4+2+l {
+	t += l
+	if len(b) < t {
 		return ErrPayloadTooShort
 	}
 	vr.Version = string(b[8 : 8+l])
@@ -349,19 +353,22 @@ type AuthRequest struct {
 }
 
 func (ar *AuthRequest) UnmarshalBinary(b []byte) error {
-	if len(b) < 2+4+2+2 {
+	t := 2 + 4 + 2 + 2
+	if len(b) < t {
 		return ErrPayloadTooShort
 	}
 	ar.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
 	ar.AuthFid = Fid(binary.LittleEndian.Uint32(b[2:6]))
 	l := int(binary.LittleEndian.Uint16(b[6:8]))
-	if len(b) < 2+4+2+l {
+	t += l
+	if len(b) < t {
 		return ErrPayloadTooShort
 	}
 	ar.Username = string(b[8 : 8+l])
 	idx := 8 + l
 	l = int(binary.LittleEndian.Uint16(b[idx : idx+2]))
-	if len(b) < idx+2+l {
+	t += l
+	if len(b) < t {
 		return ErrPayloadTooShort
 	}
 	ar.Service = string(b[idx+2 : idx+2+l])
@@ -436,20 +443,23 @@ type AttachRequest struct {
 }
 
 func (ar *AttachRequest) UnmarshalBinary(b []byte) error {
-	if len(b) < 2+4+4+2+2 {
+	t := 2 + 4 + 4 + 2 + 2
+	if len(b) < t {
 		return ErrPayloadTooShort
 	}
 	ar.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
 	ar.Fid = Fid(binary.LittleEndian.Uint32(b[2:6]))
 	ar.AuthFid = Fid(binary.LittleEndian.Uint32(b[6:10]))
 	l := int(binary.LittleEndian.Uint16(b[10:12]))
-	if len(b) < 2+4+4+2+l {
+	t += l
+	if len(b) < t {
 		return ErrPayloadTooShort
 	}
 	ar.Username = string(b[12 : 12+l])
 	idx := 12 + l
 	l = int(binary.LittleEndian.Uint16(b[idx : idx+2]))
-	if len(b) < idx+2+l {
+	t += l
+	if len(b) < t {
 		return ErrPayloadTooShort
 	}
 	ar.Service = string(b[idx+2 : idx+2+l])
@@ -511,12 +521,14 @@ type ErrorResponse struct {
 }
 
 func (er *ErrorResponse) UnmarshalBinary(b []byte) error {
-	if len(b) < 2+2 {
+	t := 2 + 2
+	if len(b) < t {
 		return ErrPayloadTooShort
 	}
 	er.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
 	l := int(binary.LittleEndian.Uint16(b[2:4]))
-	if len(b) < 2+2+l {
+	t += l
+	if len(b) < t {
 		return ErrPayloadTooShort
 	}
 	er.Error = string(b[4 : 4+l])
@@ -773,15 +785,20 @@ type CreateRequest struct {
 }
 
 func (cr *CreateRequest) UnmarshalBinary(b []byte) error {
-	if len(b) < 2+4+2+len(cr.Name)+4+1 {
+	t := 2 + 4 + 2 + 4 + 1
+	if len(b) < t {
 		return ErrPayloadTooShort
 	}
 	cr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
 	cr.Fid = Fid(binary.LittleEndian.Uint32(b[2:6]))
 	l := int(binary.LittleEndian.Uint16(b[6:8]))
-	idx := 8
-	cr.Name = string(b[idx : idx+l])
-	idx += l
+	t += l
+	if len(b) < t {
+		return ErrPayloadTooShort
+	}
+
+	cr.Name = string(b[8 : 8+l])
+	idx := 8 + l
 	cr.Permissions = FileMode(binary.LittleEndian.Uint32(b[idx : idx+4]))
 	cr.Mode = OpenMode(b[idx+4])
 	return nil
