@@ -7,6 +7,9 @@ import (
 	"io"
 )
 
+// ErrPayloadTooShort indicates that the message was not complete.
+var ErrPayloadTooShort = errors.New("payload too short")
+
 // Default is the protocol used by the raw Encode and Decode functions.
 var Default = NineP2000
 
@@ -28,6 +31,23 @@ type Message interface {
 	encoding.BinaryUnmarshaler
 	encoding.BinaryMarshaler
 	GetTag() Tag
+}
+
+// Write write all the provided data unless and io error occurs.
+func write(w io.Writer, b []byte) error {
+	var (
+		written int
+		err     error
+		l       = len(b)
+	)
+	for written < l {
+		written, err = w.Write(b[written:])
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // DecodeHdr reads 5 bytes and returns the decoded size and message type. It
@@ -107,12 +127,11 @@ func (c *Codec) Encode(w io.Writer, m Message) error {
 		return err
 	}
 
-	size := uint32(len(b) + HeaderSize)
-	if err = writeUint32(w, size); err != nil {
-		return err
-	}
+	h := make([]byte, 5)
+	binary.LittleEndian.PutUint32(h[0:4], uint32(len(b)+HeaderSize))
+	h[4] = byte(mt)
 
-	if err = writeMessageType(w, mt); err != nil {
+	if err = write(w, h); err != nil {
 		return err
 	}
 
