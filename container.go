@@ -2,6 +2,7 @@ package qp
 
 import (
 	"encoding"
+	"encoding/binary"
 	"errors"
 	"io"
 )
@@ -33,20 +34,20 @@ type Message interface {
 // may return an error if reading from the Reader fails.
 func DecodeHdr(r io.Reader) (uint32, MessageType, error) {
 	var (
+		n    int
 		size uint32
 		mt   MessageType
 		err  error
 	)
 
-	if size, err = readUint32(r); err != nil {
+	b := make([]byte, 5)
+	n, err = io.ReadFull(r, b)
+	if n < 5 {
 		return 0, 0, err
 	}
-
-	if mt, err = readMessageType(r); err != nil {
-		return size, 0, err
-	}
-
-	return size, mt, nil
+	size = binary.LittleEndian.Uint32(b[0:4])
+	mt = MessageType(b[4])
+	return size, mt, err
 }
 
 // Codec encodes/decodes messages using the provided message type <-> message
