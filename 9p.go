@@ -52,6 +52,7 @@ var NineP2000 Protocol = &Codec{
 // current requests.
 type Tag uint16
 
+// GetTag is a convenience method to retrieve the tag without type asserting.
 func (t Tag) GetTag() Tag {
 	return t
 }
@@ -87,6 +88,7 @@ type Qid struct {
 	Path uint64
 }
 
+// UnmarshalBinary unmarshals the message from the provided byte slice.
 func (q *Qid) UnmarshalBinary(b []byte) error {
 	if len(b) < 13 {
 		return ErrPayloadTooShort
@@ -97,6 +99,7 @@ func (q *Qid) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
+// MarshalBinary marshals the message into a byte slice.
 func (q *Qid) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 13)
 	b[0] = byte(q.Type)
@@ -142,6 +145,7 @@ type Stat struct {
 	MUID string
 }
 
+// UnmarshalBinary unmarshals the message from the provided byte slice.
 func (s *Stat) UnmarshalBinary(b []byte) error {
 	t := 2 + 2 + 4 + 13 + 4 + 4 + 4 + 8 + 2 + 2 + 2 + 2
 	if len(b) < t {
@@ -204,6 +208,7 @@ func (s *Stat) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
+// MarshalBinary marshals the message into a byte slice.
 func (s *Stat) MarshalBinary() ([]byte, error) {
 	l := 2 + 2 + 4 + 13 + 4 + 4 + 4 + 8 + 2 + 2 + 2 + 2 + len(s.Name) + len(s.UID) + len(s.GID) + len(s.MUID)
 
@@ -267,6 +272,7 @@ type VersionRequest struct {
 	Version string
 }
 
+// UnmarshalBinary unmarshals the message from the provided byte slice.
 func (vr *VersionRequest) UnmarshalBinary(b []byte) error {
 	t := 2 + 4 + 2
 	if len(b) < t {
@@ -286,6 +292,7 @@ func (vr *VersionRequest) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
+// MarshalBinary marshals the message into a byte slice.
 func (vr *VersionRequest) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 2+4+2+len(vr.Version))
 	binary.LittleEndian.PutUint16(b[0:2], uint16(vr.Tag))
@@ -312,6 +319,7 @@ type VersionResponse struct {
 	Version string
 }
 
+// UnmarshalBinary unmarshals the message from the provided byte slice.
 func (vr *VersionResponse) UnmarshalBinary(b []byte) error {
 	t := 2 + 4 + 2
 	if len(b) < t {
@@ -331,6 +339,7 @@ func (vr *VersionResponse) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
+// MarshalBinary marshals the message into a byte slice.
 func (vr *VersionResponse) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 2+4+2+len(vr.Version))
 	binary.LittleEndian.PutUint16(b[0:2], uint16(vr.Tag))
@@ -359,6 +368,7 @@ type AuthRequest struct {
 	Service string
 }
 
+// UnmarshalBinary unmarshals the message from the provided byte slice.
 func (ar *AuthRequest) UnmarshalBinary(b []byte) error {
 	t := 2 + 4 + 2 + 2
 	if len(b) < t {
@@ -386,6 +396,7 @@ func (ar *AuthRequest) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
+// MarshalBinary marshals the message into a byte slice.
 func (ar *AuthRequest) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 2+4+2+len(ar.Username)+2+len(ar.Service))
 	binary.LittleEndian.PutUint16(b[0:2], uint16(ar.Tag))
@@ -411,6 +422,7 @@ type AuthResponse struct {
 	AuthQid Qid
 }
 
+// UnmarshalBinary unmarshals the message from the provided byte slice.
 func (ar *AuthResponse) UnmarshalBinary(b []byte) error {
 	if len(b) < 2+13 {
 		return ErrPayloadTooShort
@@ -423,6 +435,7 @@ func (ar *AuthResponse) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
+// MarshalBinary marshals the message into a byte slice.
 func (ar *AuthResponse) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 2+13)
 	binary.LittleEndian.PutUint16(b[0:2], uint16(ar.Tag))
@@ -454,6 +467,7 @@ type AttachRequest struct {
 	Service string
 }
 
+// UnmarshalBinary unmarshals the message from the provided byte slice.
 func (ar *AttachRequest) UnmarshalBinary(b []byte) error {
 	t := 2 + 4 + 4 + 2 + 2
 	if len(b) < t {
@@ -482,6 +496,7 @@ func (ar *AttachRequest) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
+// MarshalBinary marshals the message into a byte slice.
 func (ar *AttachRequest) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 2+4+4+2+len(ar.Username)+2+len(ar.Service))
 	binary.LittleEndian.PutUint16(b[0:2], uint16(ar.Tag))
@@ -506,6 +521,7 @@ type AttachResponse struct {
 	Qid Qid
 }
 
+// UnmarshalBinary unmarshals the message from the provided byte slice.
 func (ar *AttachResponse) UnmarshalBinary(b []byte) error {
 	if len(b) < 2+13 {
 		return ErrPayloadTooShort
@@ -518,6 +534,7 @@ func (ar *AttachResponse) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
+// MarshalBinary marshals the message into a byte slice.
 func (ar *AttachResponse) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 2+13)
 	binary.LittleEndian.PutUint16(b[0:2], uint16(ar.Tag))
@@ -537,6 +554,7 @@ type ErrorResponse struct {
 	Error string
 }
 
+// UnmarshalBinary unmarshals the message from the provided byte slice.
 func (er *ErrorResponse) UnmarshalBinary(b []byte) error {
 	t := 2 + 2
 	if len(b) < t {
@@ -554,6 +572,7 @@ func (er *ErrorResponse) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
+// MarshalBinary marshals the message into a byte slice.
 func (er *ErrorResponse) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 2+2+len(er.Error))
 	binary.LittleEndian.PutUint16(b[0:2], uint16(er.Tag))
@@ -571,6 +590,7 @@ type FlushRequest struct {
 	OldTag Tag
 }
 
+// UnmarshalBinary unmarshals the message from the provided byte slice.
 func (fr *FlushRequest) UnmarshalBinary(b []byte) error {
 	if len(b) < 2+2 {
 		return ErrPayloadTooShort
@@ -580,6 +600,7 @@ func (fr *FlushRequest) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
+// MarshalBinary marshals the message into a byte slice.
 func (fr *FlushRequest) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 2+2)
 	binary.LittleEndian.PutUint16(b[0:2], uint16(fr.Tag))
@@ -593,6 +614,7 @@ type FlushResponse struct {
 	Tag
 }
 
+// UnmarshalBinary unmarshals the message from the provided byte slice.
 func (fr *FlushResponse) UnmarshalBinary(b []byte) error {
 	if len(b) < 2 {
 		return ErrPayloadTooShort
@@ -601,6 +623,7 @@ func (fr *FlushResponse) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
+// MarshalBinary marshals the message into a byte slice.
 func (fr *FlushResponse) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 2)
 	binary.LittleEndian.PutUint16(b[0:2], uint16(fr.Tag))
@@ -623,6 +646,7 @@ type WalkRequest struct {
 	Names []string
 }
 
+// UnmarshalBinary unmarshals the message from the provided byte slice.
 func (wr *WalkRequest) UnmarshalBinary(b []byte) error {
 	t := 2 + 4 + 4 + 2
 	if len(b) < t {
@@ -651,6 +675,7 @@ func (wr *WalkRequest) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
+// MarshalBinary marshals the message into a byte slice.
 func (wr *WalkRequest) MarshalBinary() ([]byte, error) {
 	l := 2 + 4 + 4 + 2
 	for i := range wr.Names {
@@ -681,6 +706,7 @@ type WalkResponse struct {
 	Qids []Qid
 }
 
+// UnmarshalBinary unmarshals the message from the provided byte slice.
 func (wr *WalkResponse) UnmarshalBinary(b []byte) error {
 	t := 2 + 2
 	if len(b) < t {
@@ -703,6 +729,7 @@ func (wr *WalkResponse) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
+// MarshalBinary marshals the message into a byte slice.
 func (wr *WalkResponse) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 2+2+13*len(wr.Qids))
 	binary.LittleEndian.PutUint16(b[0:2], uint16(wr.Tag))
@@ -728,6 +755,7 @@ type OpenRequest struct {
 	Mode OpenMode
 }
 
+// UnmarshalBinary unmarshals the message from the provided byte slice.
 func (or *OpenRequest) UnmarshalBinary(b []byte) error {
 	if len(b) < 2+4+1 {
 		return ErrPayloadTooShort
@@ -739,6 +767,7 @@ func (or *OpenRequest) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
+// MarshalBinary marshals the message into a byte slice.
 func (or *OpenRequest) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 2+4+1)
 	binary.LittleEndian.PutUint16(b[0:2], uint16(or.Tag))
@@ -761,6 +790,7 @@ type OpenResponse struct {
 	IOUnit uint32
 }
 
+// UnmarshalBinary unmarshals the message from the provided byte slice.
 func (or *OpenResponse) UnmarshalBinary(b []byte) error {
 	if len(b) < 2+13+4 {
 		return ErrPayloadTooShort
@@ -774,6 +804,7 @@ func (or *OpenResponse) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
+// MarshalBinary marshals the message into a byte slice.
 func (or *OpenResponse) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 2+13+4)
 	binary.LittleEndian.PutUint16(b[0:2], uint16(or.Tag))
@@ -805,6 +836,7 @@ type CreateRequest struct {
 	Mode OpenMode
 }
 
+// UnmarshalBinary unmarshals the message from the provided byte slice.
 func (cr *CreateRequest) UnmarshalBinary(b []byte) error {
 	t := 2 + 4 + 2 + 4 + 1
 	if len(b) < t {
@@ -825,6 +857,7 @@ func (cr *CreateRequest) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
+// MarshalBinary marshals the message into a byte slice.
 func (cr *CreateRequest) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 2+4+2+len(cr.Name)+4+1)
 	binary.LittleEndian.PutUint16(b[0:2], uint16(cr.Tag))
@@ -854,6 +887,7 @@ type CreateResponse struct {
 	IOUnit uint32
 }
 
+// UnmarshalBinary unmarshals the message from the provided byte slice.
 func (cr *CreateResponse) UnmarshalBinary(b []byte) error {
 	if len(b) < 2+13+4 {
 		return ErrPayloadTooShort
@@ -866,6 +900,7 @@ func (cr *CreateResponse) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
+// MarshalBinary marshals the message into a byte slice.
 func (cr *CreateResponse) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 2+13+4)
 	binary.LittleEndian.PutUint16(b[0:2], uint16(cr.Tag))
@@ -890,6 +925,7 @@ type ReadRequest struct {
 	Count uint32
 }
 
+// UnmarshalBinary unmarshals the message from the provided byte slice.
 func (rr *ReadRequest) UnmarshalBinary(b []byte) error {
 	if len(b) < 2+4+8+4 {
 		return ErrPayloadTooShort
@@ -902,6 +938,7 @@ func (rr *ReadRequest) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
+// MarshalBinary marshals the message into a byte slice.
 func (rr *ReadRequest) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 2+4+8+4)
 	binary.LittleEndian.PutUint16(b[0:2], uint16(rr.Tag))
@@ -919,6 +956,7 @@ type ReadResponse struct {
 	Data []byte
 }
 
+// UnmarshalBinary unmarshals the message from the provided byte slice.
 func (rr *ReadResponse) UnmarshalBinary(b []byte) error {
 	if len(b) < 2+4 {
 		return ErrPayloadTooShort
@@ -934,6 +972,7 @@ func (rr *ReadResponse) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
+// MarshalBinary marshals the message into a byte slice.
 func (rr *ReadResponse) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 2+4+len(rr.Data))
 	binary.LittleEndian.PutUint16(b[0:2], uint16(rr.Tag))
@@ -956,6 +995,7 @@ type WriteRequest struct {
 	Data []byte
 }
 
+// UnmarshalBinary unmarshals the message from the provided byte slice.
 func (wr *WriteRequest) UnmarshalBinary(b []byte) error {
 	t := 2 + 4 + 8 + 4
 	if len(b) < t {
@@ -976,6 +1016,7 @@ func (wr *WriteRequest) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
+// MarshalBinary marshals the message into a byte slice.
 func (wr *WriteRequest) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 2+4+8+4+len(wr.Data))
 	binary.LittleEndian.PutUint16(b[0:2], uint16(wr.Tag))
@@ -994,6 +1035,7 @@ type WriteResponse struct {
 	Count uint32
 }
 
+// UnmarshalBinary unmarshals the message from the provided byte slice.
 func (wr *WriteResponse) UnmarshalBinary(b []byte) error {
 	if len(b) < 2+4 {
 		return ErrPayloadTooShort
@@ -1004,6 +1046,7 @@ func (wr *WriteResponse) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
+// MarshalBinary marshals the message into a byte slice.
 func (wr *WriteResponse) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 2+4)
 	binary.LittleEndian.PutUint16(b[0:2], uint16(wr.Tag))
@@ -1019,6 +1062,7 @@ type ClunkRequest struct {
 	Fid Fid
 }
 
+// UnmarshalBinary unmarshals the message from the provided byte slice.
 func (cr *ClunkRequest) UnmarshalBinary(b []byte) error {
 	if len(b) < 2+4 {
 		return ErrPayloadTooShort
@@ -1029,6 +1073,7 @@ func (cr *ClunkRequest) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
+// MarshalBinary marshals the message into a byte slice.
 func (cr *ClunkRequest) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 2+4)
 	binary.LittleEndian.PutUint16(b[0:2], uint16(cr.Tag))
@@ -1041,6 +1086,7 @@ type ClunkResponse struct {
 	Tag
 }
 
+// UnmarshalBinary unmarshals the message from the provided byte slice.
 func (cr *ClunkResponse) UnmarshalBinary(b []byte) error {
 	if len(b) < 2 {
 		return ErrPayloadTooShort
@@ -1050,6 +1096,7 @@ func (cr *ClunkResponse) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
+// MarshalBinary marshals the message into a byte slice.
 func (cr *ClunkResponse) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 2)
 	binary.LittleEndian.PutUint16(b[0:2], uint16(cr.Tag))
@@ -1064,6 +1111,7 @@ type RemoveRequest struct {
 	Fid Fid
 }
 
+// UnmarshalBinary unmarshals the message from the provided byte slice.
 func (rr *RemoveRequest) UnmarshalBinary(b []byte) error {
 	if len(b) < 2+4 {
 		return ErrPayloadTooShort
@@ -1074,6 +1122,7 @@ func (rr *RemoveRequest) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
+// MarshalBinary marshals the message into a byte slice.
 func (rr *RemoveRequest) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 2+4)
 	binary.LittleEndian.PutUint16(b[0:2], uint16(rr.Tag))
@@ -1086,6 +1135,7 @@ type RemoveResponse struct {
 	Tag
 }
 
+// UnmarshalBinary unmarshals the message from the provided byte slice.
 func (rr *RemoveResponse) UnmarshalBinary(b []byte) error {
 	if len(b) < 2 {
 		return ErrPayloadTooShort
@@ -1095,6 +1145,7 @@ func (rr *RemoveResponse) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
+// MarshalBinary marshals the message into a byte slice.
 func (rr *RemoveResponse) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 2)
 	binary.LittleEndian.PutUint16(b[0:2], uint16(rr.Tag))
@@ -1109,6 +1160,7 @@ type StatRequest struct {
 	Fid Fid
 }
 
+// UnmarshalBinary unmarshals the message from the provided byte slice.
 func (sr *StatRequest) UnmarshalBinary(b []byte) error {
 	if len(b) < 2+4 {
 		return ErrPayloadTooShort
@@ -1119,6 +1171,7 @@ func (sr *StatRequest) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
+// MarshalBinary marshals the message into a byte slice.
 func (sr *StatRequest) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 2+4)
 	binary.LittleEndian.PutUint16(b[0:2], uint16(sr.Tag))
@@ -1134,6 +1187,7 @@ type StatResponse struct {
 	Stat Stat
 }
 
+// UnmarshalBinary unmarshals the message from the provided byte slice.
 func (sr *StatResponse) UnmarshalBinary(b []byte) error {
 	if len(b) < 2+2 {
 		return ErrPayloadTooShort
@@ -1143,6 +1197,7 @@ func (sr *StatResponse) UnmarshalBinary(b []byte) error {
 	return sr.Stat.UnmarshalBinary(b[4:])
 }
 
+// MarshalBinary marshals the message into a byte slice.
 func (sr *StatResponse) MarshalBinary() ([]byte, error) {
 	x, err := sr.Stat.MarshalBinary()
 	if err != nil {
@@ -1174,6 +1229,7 @@ type WriteStatRequest struct {
 	Stat Stat
 }
 
+// UnmarshalBinary unmarshals the message from the provided byte slice.
 func (wsr *WriteStatRequest) UnmarshalBinary(b []byte) error {
 	if len(b) < 2+4+2 {
 		return ErrPayloadTooShort
@@ -1184,6 +1240,7 @@ func (wsr *WriteStatRequest) UnmarshalBinary(b []byte) error {
 	return wsr.Stat.UnmarshalBinary(b[8:])
 }
 
+// MarshalBinary marshals the message into a byte slice.
 func (wsr *WriteStatRequest) MarshalBinary() ([]byte, error) {
 	x, err := wsr.Stat.MarshalBinary()
 	if err != nil {
@@ -1203,6 +1260,7 @@ type WriteStatResponse struct {
 	Tag
 }
 
+// UnmarshalBinary unmarshals the message from the provided byte slice.
 func (wsr *WriteStatResponse) UnmarshalBinary(b []byte) error {
 	if len(b) < 2 {
 		return ErrPayloadTooShort
@@ -1211,6 +1269,7 @@ func (wsr *WriteStatResponse) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
+// MarshalBinary marshals the message into a byte slice.
 func (wsr *WriteStatResponse) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 2)
 	binary.LittleEndian.PutUint16(b[0:2], uint16(wsr.Tag))

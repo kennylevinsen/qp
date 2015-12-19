@@ -82,6 +82,7 @@ type StatDotu struct {
 	MUIDno uint32
 }
 
+// UnmarshalBinary unmarshals the message from the provided byte slice.
 func (s *StatDotu) UnmarshalBinary(b []byte) error {
 	t := 2 + 2 + 4 + 13 + 4 + 4 + 4 + 8 + 2 + 2 + 2 + 2 + 2 + 4 + 4 + 4
 	if len(b) < t {
@@ -157,6 +158,7 @@ func (s *StatDotu) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
+// MarshalBinary marshals the message into a byte slice.
 func (s *StatDotu) MarshalBinary() ([]byte, error) {
 	l := 2 + 2 + 4 + 13 + 4 + 4 + 4 + 8 + 2 + 2 + 2 + 2 + 2 + 4 + 4 + 4 + len(s.Name) + len(s.UID) + len(s.GID) + len(s.MUID) + len(s.Extensions)
 	b := make([]byte, l)
@@ -231,6 +233,7 @@ type AuthRequestDotu struct {
 	UIDno uint32
 }
 
+// UnmarshalBinary unmarshals the message from the provided byte slice.
 func (ar *AuthRequestDotu) UnmarshalBinary(b []byte) error {
 	t := 2 + 4 + 2 + 2 + 4
 	if len(b) < t {
@@ -258,6 +261,7 @@ func (ar *AuthRequestDotu) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
+// MarshalBinary marshals the message into a byte slice.
 func (ar *AuthRequestDotu) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 2+4+2+len(ar.Username)+2+len(ar.Service)+4)
 	binary.LittleEndian.PutUint16(b[0:2], uint16(ar.Tag))
@@ -297,6 +301,7 @@ type AttachRequestDotu struct {
 	UIDno uint32
 }
 
+// UnmarshalBinary unmarshals the message from the provided byte slice.
 func (ar *AttachRequestDotu) UnmarshalBinary(b []byte) error {
 	t := 2 + 4 + 4 + 2 + 2 + 4
 	if len(b) < t {
@@ -325,6 +330,7 @@ func (ar *AttachRequestDotu) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
+// MarshalBinary marshals the message into a byte slice.
 func (ar *AttachRequestDotu) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 2+4+4+2+len(ar.Username)+2+len(ar.Service)+4)
 	binary.LittleEndian.PutUint16(b[0:2], uint16(ar.Tag))
@@ -355,6 +361,7 @@ type ErrorResponseDotu struct {
 	Errno uint32
 }
 
+// UnmarshalBinary unmarshals the message from the provided byte slice.
 func (er *ErrorResponseDotu) UnmarshalBinary(b []byte) error {
 	t := 2 + 2 + 4
 	if len(b) < t {
@@ -373,6 +380,7 @@ func (er *ErrorResponseDotu) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
+// MarshalBinary marshals the message into a byte slice.
 func (er *ErrorResponseDotu) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 2+2+len(er.Error)+4)
 	binary.LittleEndian.PutUint16(b[0:2], uint16(er.Tag))
@@ -405,6 +413,7 @@ type CreateRequestDotu struct {
 	Extensions string
 }
 
+// UnmarshalBinary unmarshals the message from the provided byte slice.
 func (cr *CreateRequestDotu) UnmarshalBinary(b []byte) error {
 	t := 2 + 4 + 2 + 4 + 1 + 2
 	if len(b) < t {
@@ -436,6 +445,7 @@ func (cr *CreateRequestDotu) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
+// MarshalBinary marshals the message into a byte slice.
 func (cr *CreateRequestDotu) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 2+4+2+len(cr.Name)+4+1+2+len(cr.Extensions))
 	binary.LittleEndian.PutUint16(b[0:2], uint16(cr.Tag))
@@ -464,6 +474,7 @@ type StatResponseDotu struct {
 	Stat StatDotu
 }
 
+// UnmarshalBinary unmarshals the message from the provided byte slice.
 func (sr *StatResponseDotu) UnmarshalBinary(b []byte) error {
 	if len(b) < 2+2 {
 		return ErrPayloadTooShort
@@ -473,6 +484,7 @@ func (sr *StatResponseDotu) UnmarshalBinary(b []byte) error {
 	return sr.Stat.UnmarshalBinary(b[4:])
 }
 
+// MarshalBinary marshals the message into a byte slice.
 func (sr *StatResponseDotu) MarshalBinary() ([]byte, error) {
 	x, err := sr.Stat.MarshalBinary()
 	if err != nil {
@@ -498,6 +510,7 @@ type WriteStatRequestDotu struct {
 	Stat StatDotu
 }
 
+// UnmarshalBinary unmarshals the message from the provided byte slice.
 func (wsr *WriteStatRequestDotu) UnmarshalBinary(b []byte) error {
 	if len(b) < 2+4+2 {
 		return ErrPayloadTooShort
@@ -508,6 +521,7 @@ func (wsr *WriteStatRequestDotu) UnmarshalBinary(b []byte) error {
 	return wsr.Stat.UnmarshalBinary(b[8:])
 }
 
+// MarshalBinary marshals the message into a byte slice.
 func (wsr *WriteStatRequestDotu) MarshalBinary() ([]byte, error) {
 	x, err := wsr.Stat.MarshalBinary()
 	if err != nil {
