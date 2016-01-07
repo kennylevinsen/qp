@@ -7,6 +7,11 @@ import (
 	"io"
 )
 
+const (
+	DefaultBufSize = 16384
+	DefaultMinBuf  = 2048
+)
+
 // ErrPayloadTooShort indicates that the message was not complete.
 var ErrPayloadTooShort = errors.New("payload too short")
 
@@ -17,6 +22,8 @@ var Default = NineP2000
 type Protocol interface {
 	Decode(r io.Reader) (Message, error)
 	Encode(w io.Writer, m Message) error
+	MessageType(Message) (MessageType, error)
+	Message(MessageType) (Message, error)
 }
 
 // MessageType is the type of the contained message.
@@ -142,6 +149,14 @@ func (c *Codec) Encode(w io.Writer, m Message) error {
 	return nil
 }
 
+func (c *Codec) MessageType(m Message) (MessageType, error) {
+	return c.M2MT(m)
+}
+
+func (c *Codec) Message(mt MessageType) (Message, error) {
+	return c.MT2M(mt)
+}
+
 // Decode is a convenience function for calling decode on the default
 // protocol.
 func Decode(r io.Reader) (Message, error) {
@@ -152,4 +167,127 @@ func Decode(r io.Reader) (Message, error) {
 // protocol.
 func Encode(w io.Writer, d Message) error {
 	return Default.Encode(w, d)
+}
+
+// Decoder implements a decoding loop that calls a callback for every decoded
+// message. Replacing the protocol codec from a callback is valid and well-
+// defined, with the result being that the next message will be decoded with
+// that codec. Replacing the reader is also well-defined if the callback is
+// certain that the server have not sent and will not send any further
+// messages before the replace have occured. Otherwise, a partial message may
+// be left in the buffer, breaking the Decoder.
+type Decoder struct {
+	Proto    Protocol
+	Callback func(m Message) error
+	Reader   io.Reader
+	Stopped  bool
+	BufSize  int
+	MinBuf   int
+}
+
+// If the callback returns an error, the reader returns an error, the message
+// type is invalid or the message fails to decode, the loop exits with an
+// error.
+func (d *Decoder) Run() error {
+	d.Stopped = false
+
+	if d.BufSize == 0 {
+		d.BufSize = DefaultBufSize
+	}
+
+	if d.MinBuf == 0 {
+		d.MinBuf = DefaultMinBuf
+	}
+
+	var (
+		// total is the count of bytes in the buffer.
+		total uint32
+
+		// needed is the amount of bytes missing.
+		needed int = HeaderSize
+
+		// size is the decoded message body size, not including message header.
+		size uint32
+
+		// ptr is the start index at the buffer at the current time.
+		ptr uint32
+
+		// m is the decoded message.
+		m Message
+
+		// buf is the rading buffer
+		buf = make([]byte, d.BufSize)
+	)
+
+	for !d.Stopped {
+		n, err := d.Reader.Read(buf[total:])
+		if err != nil {
+			return err
+		}
+
+		total += uint32(n)
+		needed -= n
+
+		// Handle the data we got
+		for needed <= 0 {
+			if m == nil { // Read a header if no message struct is set.
+				size = binary.LittleEndian.Uint32(buf[ptr:ptr+4]) - HeaderSize
+				mt := MessageType(buf[ptr+4])
+
+				// Update message body size, missing bytes and the current ptr.
+				needed += int(size)
+				ptr += HeaderSize
+
+				// We try to fetch the message struct immediately - better to fail
+				// early rather than late.
+				if m, err = d.Proto.Message(mt); err != nil {
+					return err
+				}
+
+			} else { // Otherwise, read a body for the message.
+				if err = m.UnmarshalBinary(buf[ptr : ptr+size]); err != nil {
+					return err
+				}
+				if err = d.Callback(m); err != nil {
+					return err
+				}
+				m = nil
+
+				needed += HeaderSize
+				ptr += size
+				size = 0
+			}
+		}
+
+		// Buffer checks and reset
+		l := len(buf)
+		remaining := l - int(total)
+		if -needed > l {
+			// Okay, we need to scale our buffer, because the total size of the
+			// buffer is not sufficient. The normal 9P behaviour would be to
+			// fail, as the version request specifically sets a maximum message
+			// size that should be equivalent to the buffer size.
+			for -needed > l {
+				l *= 2
+			}
+
+			newbuf := make([]byte, l)
+			copy(newbuf, buf[ptr:total])
+			total -= ptr
+			ptr = 0
+			buf = newbuf
+		} else if needed > remaining || remaining < d.MinBuf {
+			// The remaining part of the buffer is smaller than what we need, or
+			// smaller than the minimum hint - time for a cleaning.
+			copy(buf, buf[ptr:total])
+			total -= ptr
+			ptr = 0
+		}
+
+	}
+	return nil
+}
+
+func (d *Decoder) Stop() {
+	d.Stopped = true
 }
