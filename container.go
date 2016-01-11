@@ -174,7 +174,7 @@ func Encode(w io.Writer, d Message) error {
 type Encoder struct {
 	Protocol Protocol
 	Writer   io.Writer
-	MaxSize  int
+	MaxSize  uint32
 	Sloppy   bool
 
 	writeLock sync.Mutex
@@ -196,6 +196,14 @@ func (e *Encoder) SetWriter(w io.Writer) {
 	e.Writer = w
 }
 
+// SetMaxSize sets the maxsize of the Encoder.
+func (e *Encoder) SetMaxSize(ms uint32) {
+	e.writeLock.Lock()
+	defer e.writeLock.Unlock()
+
+	e.MaxSize = ms
+}
+
 // WriteMessage encodes a message and writes it to the Encoders associated
 // io.Writer.
 func (e *Encoder) WriteMessage(m Message) error {
@@ -213,13 +221,16 @@ func (e *Encoder) WriteMessage(m Message) error {
 		return err
 	}
 
-	if !e.Sloppy && (len(buf)+HeaderSize) > e.MaxSize {
+	if !e.Sloppy && (len(buf)+HeaderSize) > int(e.MaxSize) {
 		return ErrMessageTooBig
 	}
 
 	header := make([]byte, HeaderSize)
 	binary.LittleEndian.PutUint32(header[0:4], uint32(len(buf)+HeaderSize))
 	header[4] = byte(mt)
+
+	e.writeLock.Lock()
+	defer e.writeLock.Unlock()
 
 	if err = write(e.Writer, header); err != nil {
 		return err
@@ -239,7 +250,7 @@ type Decoder struct {
 	Callback func(m Message) error
 	Reader   io.Reader
 	Stopped  bool
-	MaxSize  int
+	MaxSize  uint32
 	MinBuf   int
 	Sloppy   bool
 }
@@ -259,6 +270,13 @@ func (d *Decoder) SetProtocol(p Protocol) {
 // Decoder.
 func (d *Decoder) SetReader(r io.Reader) {
 	d.Reader = r
+}
+
+// SetMaxSize sets the maxsize of the Decoder. Setting maxsize to higher than
+// the current maxsize is not permitted. Setting it lower will not reallocate
+// the buffer, but rather just soft-limit messages.
+func (d *Decoder) SetMaxSize(ms uint32) {
+	d.MaxSize = ms
 }
 
 // If the callback returns an error, the reader returns an error, the message
@@ -312,7 +330,6 @@ func (d *Decoder) Run() error {
 		if err != nil {
 			return err
 		}
-
 		total += uint32(n)
 		needed -= n
 
