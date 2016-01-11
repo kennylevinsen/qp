@@ -5,15 +5,16 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"sync"
 )
 
 const (
-	DefaultBufSize = 16384
-	DefaultMinBuf  = 2048
+	DefaultMinBuf = 2048
 )
 
 // ErrPayloadTooShort indicates that the message was not complete.
 var ErrPayloadTooShort = errors.New("payload too short")
+var ErrMessageTooBig = errors.New("message size larger than buffer")
 
 // Default is the protocol used by the raw Encode and Decode functions.
 var Default = NineP2000
@@ -169,20 +170,95 @@ func Encode(w io.Writer, d Message) error {
 	return Default.Encode(w, d)
 }
 
-// Decoder implements a decoding loop that calls a callback for every decoded
-// message. Replacing the protocol codec from a callback is valid and well-
-// defined, with the result being that the next message will be decoded with
-// that codec. Replacing the reader is also well-defined if the callback is
-// certain that the server have not sent and will not send any further
-// messages before the replace have occured. Otherwise, a partial message may
-// be left in the buffer, breaking the Decoder.
+// Encoder handles writes encoded messages to an io.Writer.
+type Encoder struct {
+	Protocol Protocol
+	Writer   io.Writer
+	MaxSize  int
+	Sloppy   bool
+
+	writeLock sync.Mutex
+}
+
+// SetProtocol sets the protocol codec of the Encoder.
+func (e *Encoder) SetProtocol(p Protocol) {
+	e.writeLock.Lock()
+	defer e.writeLock.Unlock()
+
+	e.Protocol = p
+}
+
+// SetWriter replaces the io.Writer of the Encoder.
+func (e *Encoder) SetWriter(w io.Writer) {
+	e.writeLock.Lock()
+	defer e.writeLock.Unlock()
+
+	e.Writer = w
+}
+
+// WriteMessage encodes a message and writes it to the Encoders associated
+// io.Writer.
+func (e *Encoder) WriteMessage(m Message) error {
+	var (
+		mt  MessageType
+		buf []byte
+		err error
+	)
+
+	if mt, err = e.Protocol.MessageType(m); err != nil {
+		return err
+	}
+
+	if buf, err = m.MarshalBinary(); err != nil {
+		return err
+	}
+
+	if !e.Sloppy && (len(buf)+HeaderSize) > e.MaxSize {
+		return ErrMessageTooBig
+	}
+
+	header := make([]byte, HeaderSize)
+	binary.LittleEndian.PutUint32(header[0:4], uint32(len(buf)+HeaderSize))
+	header[4] = byte(mt)
+
+	if err = write(e.Writer, header); err != nil {
+		return err
+	}
+
+	if err = write(e.Writer, buf); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Decoder reads messages from an io.Reader, calling a callback for each of them.
+// message. Unlike Codec.Decode,
 type Decoder struct {
-	Proto    Protocol
+	Protocol Protocol
 	Callback func(m Message) error
 	Reader   io.Reader
 	Stopped  bool
-	BufSize  int
+	MaxSize  int
 	MinBuf   int
+	Sloppy   bool
+}
+
+// SetProtocol sets the protocol codec of the Decoder. Replacing the protocol
+// codec is well defined, assuming that the caller knows that no further
+// messages will be decoded before the replace have occured. A way to ensure
+// this is to call SetProtocol from a blocking callback.
+func (d *Decoder) SetProtocol(p Protocol) {
+	d.Protocol = p
+}
+
+// SetReader replaces the io.Reader of the Decoder. Replacing the reader is
+// well-defined if the caller is certain that the server have not sent and
+// will not send any further messages before the replace have occured.
+// Otherwise, a partial message may be left in the buffer, breaking the
+// Decoder.
+func (d *Decoder) SetReader(r io.Reader) {
+	d.Reader = r
 }
 
 // If the callback returns an error, the reader returns an error, the message
@@ -191,32 +267,44 @@ type Decoder struct {
 func (d *Decoder) Run() error {
 	d.Stopped = false
 
-	if d.BufSize == 0 {
-		d.BufSize = DefaultBufSize
-	}
-
 	if d.MinBuf == 0 {
 		d.MinBuf = DefaultMinBuf
 	}
 
 	var (
-		// total is the count of bytes in the buffer.
+		// total is the count of bytes in the buffer. It is used to keep track
+		// of buffer usage (read offset and cleanup), and is not used by the
+		// actual decoding loop.
 		total uint32
 
-		// needed is the amount of bytes missing.
+		// needed is the amount of bytes missing. It should only be
+		// incremented or decremented, never assigned. This ensures that more
+		// than one message can be read into the buffer before the decoder is
+		// ready to read them. If needed is zero, it means that all the
+		// requested data have been read. If it is negative, then more data
+		// then the request has been read. The decoding loop continues until
+		// needed is > 0.
 		needed int = HeaderSize
 
-		// size is the decoded message body size, not including message header.
+		// size is the decoded message body size, not including message
+		// header. It is stored in order to increment the ptr correctly after
+		// reading a message.
 		size uint32
 
-		// ptr is the start index at the buffer at the current time.
+		// ptr is the start index at the buffer at the current time. It is
+		// incremented as we read through the buffer, and reset when we clean
+		// the buffer.
 		ptr uint32
 
-		// m is the decoded message.
+		// m is the current decoded message. It is nil when we have not yet
+		// decoded a header, and set to an zero-initialized message struct
+		// when we have received the header. Comparing it to nil is used to
+		// check what state the decoder is in (header decoding vs. body
+		// decoding).
 		m Message
 
-		// buf is the rading buffer
-		buf = make([]byte, d.BufSize)
+		// buf is the reading buffer.
+		buf = make([]byte, d.MaxSize)
 	)
 
 	for !d.Stopped {
@@ -240,7 +328,7 @@ func (d *Decoder) Run() error {
 
 				// We try to fetch the message struct immediately - better to fail
 				// early rather than late.
-				if m, err = d.Proto.Message(mt); err != nil {
+				if m, err = d.Protocol.Message(mt); err != nil {
 					return err
 				}
 
@@ -259,23 +347,31 @@ func (d *Decoder) Run() error {
 			}
 		}
 
-		// Buffer checks and reset
+		// Buffer checks and reset.
 		l := len(buf)
 		remaining := l - int(total)
 		if -needed > l {
-			// Okay, we need to scale our buffer, because the total size of the
-			// buffer is not sufficient. The normal 9P behaviour would be to
-			// fail, as the version request specifically sets a maximum message
-			// size that should be equivalent to the buffer size.
+			// The message is longer than the buffer size, so we need to do
+			// *something*.
+
+			if !d.Sloppy {
+				// This is considered a fatal error, as the other party must
+				// obey the negotiated maxsize as per 9P spec.
+				return ErrMessageTooBig
+			}
+
+			// Okay, we're being sloppy, so instead of failing, we scale the
+			// buffer.
 			for -needed > l {
 				l *= 2
 			}
 
+			// Allocate new buffer and copy the content.
 			newbuf := make([]byte, l)
 			copy(newbuf, buf[ptr:total])
+			buf = newbuf
 			total -= ptr
 			ptr = 0
-			buf = newbuf
 		} else if needed > remaining || remaining < d.MinBuf {
 			// The remaining part of the buffer is smaller than what we need, or
 			// smaller than the minimum hint - time for a cleaning.
@@ -283,11 +379,12 @@ func (d *Decoder) Run() error {
 			total -= ptr
 			ptr = 0
 		}
-
 	}
+
 	return nil
 }
 
+// Stop stops the decoder.
 func (d *Decoder) Stop() {
 	d.Stopped = true
 }
