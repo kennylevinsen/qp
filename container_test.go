@@ -47,7 +47,7 @@ func TestDecoder(t *testing.T) {
 		Callback: func(m Message) error {
 			// The callback is called synchronously, so direct access is okay.
 			responses[responseCount] = m
-			responseCount += 1
+			responseCount++
 			return nil
 		},
 	}

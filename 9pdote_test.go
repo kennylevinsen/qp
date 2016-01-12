@@ -73,7 +73,7 @@ var MessageTestDataDote = []MessageTestEntry{
 
 func TestUnmarshalErrorDote(t *testing.T) {
 	for i, tt := range MessageTestDataDote {
-		r := reflect.New(reflect.ValueOf(tt.input).Elem().Type()).Interface().(binaryBothWayer)
+		r := reflect.New(reflect.ValueOf(tt.input).Elem().Type()).Interface().(BinaryMarshallable)
 		testUnmarshal(t, i, r, tt.reference[:len(tt.reference)-1])
 	}
 }

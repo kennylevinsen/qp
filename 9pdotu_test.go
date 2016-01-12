@@ -7,13 +7,13 @@ import (
 
 // Test if the types live up to their interface
 var (
-	_ binaryBothWayer = (*StatDotu)(nil)
-	_ Message         = (*AuthRequestDotu)(nil)
-	_ Message         = (*AttachRequestDotu)(nil)
-	_ Message         = (*ErrorResponseDotu)(nil)
-	_ Message         = (*CreateRequestDotu)(nil)
-	_ Message         = (*StatResponseDotu)(nil)
-	_ Message         = (*WriteStatRequestDotu)(nil)
+	_ BinaryMarshallable = (*StatDotu)(nil)
+	_ Message            = (*AuthRequestDotu)(nil)
+	_ Message            = (*AttachRequestDotu)(nil)
+	_ Message            = (*ErrorResponseDotu)(nil)
+	_ Message            = (*CreateRequestDotu)(nil)
+	_ Message            = (*StatResponseDotu)(nil)
+	_ Message            = (*WriteStatRequestDotu)(nil)
 )
 
 var PrimitiveTestDataDotu = []PrimitiveTestEntry{
@@ -101,11 +101,11 @@ var MessageTestDataDotu = []MessageTestEntry{
 
 func TestUnmarshalErrorDotu(t *testing.T) {
 	for i, tt := range PrimitiveTestDataDotu {
-		r := reflect.New(reflect.ValueOf(tt.input).Elem().Type()).Interface().(binaryBothWayer)
+		r := reflect.New(reflect.ValueOf(tt.input).Elem().Type()).Interface().(BinaryMarshallable)
 		testUnmarshal(t, i, r, tt.reference[:len(tt.reference)-1])
 	}
 	for i, tt := range MessageTestDataDotu {
-		r := reflect.New(reflect.ValueOf(tt.input).Elem().Type()).Interface().(binaryBothWayer)
+		r := reflect.New(reflect.ValueOf(tt.input).Elem().Type()).Interface().(BinaryMarshallable)
 		testUnmarshal(t, i, r, tt.reference[:len(tt.reference)-1])
 	}
 }

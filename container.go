@@ -10,10 +10,13 @@ import (
 
 // ErrPayloadTooShort indicates that the message was not complete.
 var ErrPayloadTooShort = errors.New("payload too short")
+
+// ErrMessageTooBig indicates that the message, when encoded and wrapped in
+// container, does not fit in the configured message size.
 var ErrMessageTooBig = errors.New("message size larger than buffer")
 
 // Default is the protocol used by the raw Encode and Decode functions.
-var Default Protocol = NineP2000
+var Default = NineP2000
 
 // Protocol defines a protocol message encoder/decoder
 type Protocol interface {
@@ -176,10 +179,10 @@ func (d *Decoder) SetMessageSize(ms uint32) {
 	d.MessageSize = ms
 }
 
-// If the callback returns an error, the reader returns an error, the message
-// type is invalid or the message fails to decode, the loop exits with an
-// error.
-func (d *Decoder) Run() error {
+// Start runs the decoder loop. If the callback returns an error, the reader
+// returns an error, the message type is invalid or the message fails to
+// decode, the loop exits with an error.
+func (d *Decoder) Start() error {
 	d.Stopped = false
 
 	if d.MinBuf == 0 {
@@ -200,7 +203,7 @@ func (d *Decoder) Run() error {
 		// requested data have been read. If it is negative, then more data
 		// then the request has been read. The decoding loop continues until
 		// needed is > 0.
-		needed int = HeaderSize
+		needed = HeaderSize
 
 		// size is the decoded message body size, not including message
 		// header. It is stored in order to increment the ptr correctly after

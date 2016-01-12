@@ -7,13 +7,13 @@ import (
 	"testing"
 )
 
-type binaryBothWayer interface {
+type BinaryMarshallable interface {
 	encoding.BinaryMarshaler
 	encoding.BinaryUnmarshaler
 }
 
 type PrimitiveTestEntry struct {
-	input     binaryBothWayer
+	input     BinaryMarshallable
 	reference []byte
 }
 
@@ -25,35 +25,35 @@ type MessageTestEntry struct {
 
 // Test if the types live up to their interface
 var (
-	_ binaryBothWayer = (*Qid)(nil)
-	_ binaryBothWayer = (*Stat)(nil)
-	_ Message         = (*VersionRequest)(nil)
-	_ Message         = (*VersionResponse)(nil)
-	_ Message         = (*AuthRequest)(nil)
-	_ Message         = (*AuthResponse)(nil)
-	_ Message         = (*AttachRequest)(nil)
-	_ Message         = (*AttachResponse)(nil)
-	_ Message         = (*ErrorResponse)(nil)
-	_ Message         = (*FlushRequest)(nil)
-	_ Message         = (*FlushResponse)(nil)
-	_ Message         = (*WalkRequest)(nil)
-	_ Message         = (*WalkResponse)(nil)
-	_ Message         = (*OpenRequest)(nil)
-	_ Message         = (*OpenResponse)(nil)
-	_ Message         = (*CreateRequest)(nil)
-	_ Message         = (*CreateResponse)(nil)
-	_ Message         = (*ReadRequest)(nil)
-	_ Message         = (*ReadResponse)(nil)
-	_ Message         = (*WriteRequest)(nil)
-	_ Message         = (*WriteResponse)(nil)
-	_ Message         = (*ClunkRequest)(nil)
-	_ Message         = (*ClunkResponse)(nil)
-	_ Message         = (*RemoveRequest)(nil)
-	_ Message         = (*RemoveResponse)(nil)
-	_ Message         = (*StatRequest)(nil)
-	_ Message         = (*StatResponse)(nil)
-	_ Message         = (*WriteStatRequest)(nil)
-	_ Message         = (*WriteStatResponse)(nil)
+	_ BinaryMarshallable = (*Qid)(nil)
+	_ BinaryMarshallable = (*Stat)(nil)
+	_ Message            = (*VersionRequest)(nil)
+	_ Message            = (*VersionResponse)(nil)
+	_ Message            = (*AuthRequest)(nil)
+	_ Message            = (*AuthResponse)(nil)
+	_ Message            = (*AttachRequest)(nil)
+	_ Message            = (*AttachResponse)(nil)
+	_ Message            = (*ErrorResponse)(nil)
+	_ Message            = (*FlushRequest)(nil)
+	_ Message            = (*FlushResponse)(nil)
+	_ Message            = (*WalkRequest)(nil)
+	_ Message            = (*WalkResponse)(nil)
+	_ Message            = (*OpenRequest)(nil)
+	_ Message            = (*OpenResponse)(nil)
+	_ Message            = (*CreateRequest)(nil)
+	_ Message            = (*CreateResponse)(nil)
+	_ Message            = (*ReadRequest)(nil)
+	_ Message            = (*ReadResponse)(nil)
+	_ Message            = (*WriteRequest)(nil)
+	_ Message            = (*WriteResponse)(nil)
+	_ Message            = (*ClunkRequest)(nil)
+	_ Message            = (*ClunkResponse)(nil)
+	_ Message            = (*RemoveRequest)(nil)
+	_ Message            = (*RemoveResponse)(nil)
+	_ Message            = (*StatRequest)(nil)
+	_ Message            = (*StatResponse)(nil)
+	_ Message            = (*WriteStatRequest)(nil)
+	_ Message            = (*WriteStatResponse)(nil)
 )
 
 var PrimitiveTestData = []PrimitiveTestEntry{
@@ -300,16 +300,16 @@ var MessageTestData = []MessageTestEntry{
 	},
 }
 
-func ConstructNewMarshallable(old binaryBothWayer) binaryBothWayer {
+func ConstructNewMarshallable(old BinaryMarshallable) BinaryMarshallable {
 	t := reflect.ValueOf(old).Elem().Type()
-	return reflect.New(t).Interface().(binaryBothWayer)
+	return reflect.New(t).Interface().(BinaryMarshallable)
 }
 
-func CompareMarshallables(a, b binaryBothWayer) bool {
+func CompareMarshallables(a, b BinaryMarshallable) bool {
 	return reflect.DeepEqual(reflect.ValueOf(a).Elem().Interface(), reflect.ValueOf(b).Elem().Interface())
 }
 
-func reencode(i int, in binaryBothWayer, reference []byte, t *testing.T, p Protocol) {
+func reencode(i int, in BinaryMarshallable, reference []byte, t *testing.T, p Protocol) {
 	var (
 		s   []byte
 		err error
@@ -336,7 +336,7 @@ func reencode(i int, in binaryBothWayer, reference []byte, t *testing.T, p Proto
 	}
 }
 
-func testUnmarshal(t *testing.T, i int, r binaryBothWayer, x []byte) {
+func testUnmarshal(t *testing.T, i int, r BinaryMarshallable, x []byte) {
 	defer func() {
 		if rr := recover(); rr != nil {
 			t.Errorf("test %d: short unmarshal for %T at length %d panicked: %v", i, r, len(x), rr)
@@ -357,11 +357,11 @@ func testUnmarshal(t *testing.T, i int, r binaryBothWayer, x []byte) {
 // the unmarshalling loops error out nicely instead of panicking.
 func TestUnmarshalError(t *testing.T) {
 	for i, tt := range PrimitiveTestData {
-		r := reflect.New(reflect.ValueOf(tt.input).Elem().Type()).Interface().(binaryBothWayer)
+		r := reflect.New(reflect.ValueOf(tt.input).Elem().Type()).Interface().(BinaryMarshallable)
 		testUnmarshal(t, i, r, tt.reference[:len(tt.reference)-1])
 	}
 	for i, tt := range MessageTestData {
-		r := reflect.New(reflect.ValueOf(tt.input).Elem().Type()).Interface().(binaryBothWayer)
+		r := reflect.New(reflect.ValueOf(tt.input).Elem().Type()).Interface().(BinaryMarshallable)
 		testUnmarshal(t, i, r, tt.reference[:len(tt.reference)-1])
 	}
 }
