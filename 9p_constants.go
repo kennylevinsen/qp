@@ -1,8 +1,16 @@
 package qp
 
-// HeaderSize is the overhead of the size and type fields of the 9P2000
-// header.
-const HeaderSize = 4 + 1
+const (
+	// HeaderSize is the overhead of the size and type fields of the 9P2000
+	// header.
+	HeaderSize = 4 + 1
+
+	// ReadOverhead is the total overhead in bytes for a 9P2000 read response.
+	ReadOverhead = HeaderSize + 4
+
+	// WriteOverhead is the total overhead in bytes for a 9P2000 write request.
+	WriteOverhead = HeaderSize + 4 + 8 + 4
+)
 
 // Version is the 9P2000 version string.
 const Version = "9P2000"

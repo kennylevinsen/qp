@@ -263,10 +263,10 @@ func (s *Stat) MarshalBinary() ([]byte, error) {
 type VersionRequest struct {
 	Tag
 
-	// MaxSize is the suggested absolute maximum message size for the
+	// MessageSize is the suggested absolute maximum message size for the
 	// connection. The final negotiated value must be honoured. This field is
 	// called "msize" in the official implementation.
-	MaxSize uint32
+	MessageSize uint32
 
 	// Version is the suggested maximum protocol version for the connection.
 	Version string
@@ -279,7 +279,7 @@ func (vr *VersionRequest) UnmarshalBinary(b []byte) error {
 		return ErrPayloadTooShort
 	}
 	vr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
-	vr.MaxSize = binary.LittleEndian.Uint32(b[2:6])
+	vr.MessageSize = binary.LittleEndian.Uint32(b[2:6])
 
 	idx := 6
 	l := int(binary.LittleEndian.Uint16(b[idx : idx+2]))
@@ -296,23 +296,23 @@ func (vr *VersionRequest) UnmarshalBinary(b []byte) error {
 func (vr *VersionRequest) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 2+4+2+len(vr.Version))
 	binary.LittleEndian.PutUint16(b[0:2], uint16(vr.Tag))
-	binary.LittleEndian.PutUint32(b[2:6], uint32(vr.MaxSize))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(vr.MessageSize))
 	binary.LittleEndian.PutUint16(b[6:8], uint16(len(vr.Version)))
 	copy(b[8:], []byte(vr.Version))
 	return b, nil
 }
 
 // VersionResponse is used to inform the client of maximum size and version,
-// taking the clients VersionRequest into consideration. MaxSize in the reply
-// must not be larger than MaxSize in the request, and the version must
-// likewise be equal to or lower than the one in the requst.
+// taking the clients VersionRequest into consideration. MessageSize in the
+// reply must not be larger than MessageSize in the request, and the version
+// must likewise be equal to or lower than the one in the requst.
 type VersionResponse struct {
 	Tag
 
-	// MaxSize is the negotiated maximum message size for the connection. This
-	// value must be honoured. This field is called "msize" in the official
-	// implementation.
-	MaxSize uint32
+	// MessageSize is the negotiated maximum message size for the connection.
+	// This value must be honoured. This field is called "msize" in the
+	// official implementation.
+	MessageSize uint32
 
 	// Version is the negotiated protocol version, or "unknown" if negotiation
 	// failed.
@@ -326,7 +326,7 @@ func (vr *VersionResponse) UnmarshalBinary(b []byte) error {
 		return ErrPayloadTooShort
 	}
 	vr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
-	vr.MaxSize = binary.LittleEndian.Uint32(b[2:6])
+	vr.MessageSize = binary.LittleEndian.Uint32(b[2:6])
 
 	idx := 6
 	l := int(binary.LittleEndian.Uint16(b[idx : idx+2]))
@@ -343,7 +343,7 @@ func (vr *VersionResponse) UnmarshalBinary(b []byte) error {
 func (vr *VersionResponse) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 2+4+2+len(vr.Version))
 	binary.LittleEndian.PutUint16(b[0:2], uint16(vr.Tag))
-	binary.LittleEndian.PutUint32(b[2:6], uint32(vr.MaxSize))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(vr.MessageSize))
 	binary.LittleEndian.PutUint16(b[6:8], uint16(len(vr.Version)))
 	copy(b[8:], []byte(vr.Version))
 	return b, nil
