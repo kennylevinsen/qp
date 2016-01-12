@@ -8,21 +8,15 @@ import (
 	"sync"
 )
 
-const (
-	DefaultMinBuf = 2048
-)
-
 // ErrPayloadTooShort indicates that the message was not complete.
 var ErrPayloadTooShort = errors.New("payload too short")
 var ErrMessageTooBig = errors.New("message size larger than buffer")
 
 // Default is the protocol used by the raw Encode and Decode functions.
-var Default = NineP2000
+var Default Protocol = NineP2000
 
 // Protocol defines a protocol message encoder/decoder
 type Protocol interface {
-	Decode(r io.Reader) (Message, error)
-	Encode(w io.Writer, m Message) error
 	MessageType(Message) (MessageType, error)
 	Message(MessageType) (Message, error)
 }
@@ -31,8 +25,7 @@ type Protocol interface {
 type MessageType byte
 
 // Message is an interface describing an item that can encode itself to a
-// writer, decode itself from a reader, and inform how large the encoded form
-// would be at the current time. It is also capable of getting/setting the
+// writer, decode itself from a reader. It is also capable of getting the
 // message tag, which is merely a convenience feature to save a type assert
 // for access to the tag.
 type Message interface {
@@ -58,124 +51,28 @@ func write(w io.Writer, b []byte) error {
 	return nil
 }
 
-// DecodeHdr reads 5 bytes and returns the decoded size and message type. It
-// may return an error if reading from the Reader fails.
-func DecodeHdr(r io.Reader) (uint32, MessageType, error) {
-	var (
-		n    int
-		size uint32
-		mt   MessageType
-		err  error
-	)
-
-	b := make([]byte, 5)
-	n, err = io.ReadFull(r, b)
-	if n < 5 {
-		return 0, 0, err
-	}
-	size = binary.LittleEndian.Uint32(b[0:4])
-	mt = MessageType(b[4])
-	return size, mt, err
-}
-
-// Codec encodes/decodes messages using the provided message type <-> message
-// conversion.
+// Codec provides messagetype to message translation.
 type Codec struct {
 	M2MT func(Message) (MessageType, error)
 	MT2M func(MessageType) (Message, error)
 }
 
-// Decode decodes an entire message, including header, and returns the message.
-// It may return an error if reading from the Reader fails, or if a message
-// tries to consume more data than the size of the header indicated, making the
-// message invalid.
-func (c *Codec) Decode(r io.Reader) (Message, error) {
-	var (
-		size uint32
-		mt   MessageType
-		err  error
-	)
-	if size, mt, err = DecodeHdr(r); err != nil {
-		return nil, err
-	}
-
-	size -= HeaderSize
-
-	b := make([]byte, size)
-	n, err := io.ReadFull(r, b)
-	if err != nil {
-		return nil, err
-	}
-	if n != int(size) {
-		return nil, errors.New("short read")
-	}
-
-	m, err := c.MT2M(mt)
-	if err != nil {
-		return nil, err
-	}
-
-	if err = m.UnmarshalBinary(b); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-// Encode write a header and message to the provided writer. It returns an
-// error if writing failed.
-func (c *Codec) Encode(w io.Writer, m Message) error {
-	var err error
-	var mt MessageType
-	if mt, err = c.M2MT(m); err != nil {
-		return err
-	}
-
-	var b []byte
-	if b, err = m.MarshalBinary(); err != nil {
-		return err
-	}
-
-	h := make([]byte, 5)
-	binary.LittleEndian.PutUint32(h[0:4], uint32(len(b)+HeaderSize))
-	h[4] = byte(mt)
-
-	if err = write(w, h); err != nil {
-		return err
-	}
-
-	if err = write(w, b); err != nil {
-		return err
-	}
-
-	return nil
-}
-
+// MessageType returns the type of the message m.
 func (c *Codec) MessageType(m Message) (MessageType, error) {
 	return c.M2MT(m)
 }
 
+// Message returns an empty message of the type mt.
 func (c *Codec) Message(mt MessageType) (Message, error) {
 	return c.MT2M(mt)
 }
 
-// Decode is a convenience function for calling decode on the default
-// protocol.
-func Decode(r io.Reader) (Message, error) {
-	return Default.Decode(r)
-}
-
-// Encode is a convenience function for calling encode on the default
-// protocol.
-func Encode(w io.Writer, d Message) error {
-	return Default.Encode(w, d)
-}
-
 // Encoder handles writes encoded messages to an io.Writer.
 type Encoder struct {
-	Protocol Protocol
-	Writer   io.Writer
-	MaxSize  uint32
-	Sloppy   bool
+	Protocol    Protocol
+	Writer      io.Writer
+	MessageSize uint32
+	Sloppy      bool
 
 	writeLock sync.Mutex
 }
@@ -196,37 +93,37 @@ func (e *Encoder) SetWriter(w io.Writer) {
 	e.Writer = w
 }
 
-// SetMaxSize sets the maxsize of the Encoder.
-func (e *Encoder) SetMaxSize(ms uint32) {
+// SetMessageSize sets the maxsize of the Encoder.
+func (e *Encoder) SetMessageSize(ms uint32) {
 	e.writeLock.Lock()
 	defer e.writeLock.Unlock()
 
-	e.MaxSize = ms
+	e.MessageSize = ms
 }
 
 // WriteMessage encodes a message and writes it to the Encoders associated
 // io.Writer.
 func (e *Encoder) WriteMessage(m Message) error {
 	var (
-		mt  MessageType
-		buf []byte
-		err error
+		mt             MessageType
+		msgbuf, header []byte
+		err            error
 	)
 
 	if mt, err = e.Protocol.MessageType(m); err != nil {
 		return err
 	}
 
-	if buf, err = m.MarshalBinary(); err != nil {
+	if msgbuf, err = m.MarshalBinary(); err != nil {
 		return err
 	}
 
-	if !e.Sloppy && (len(buf)+HeaderSize) > int(e.MaxSize) {
+	if !e.Sloppy && (len(msgbuf)+HeaderSize) > int(e.MessageSize) {
 		return ErrMessageTooBig
 	}
 
-	header := make([]byte, HeaderSize)
-	binary.LittleEndian.PutUint32(header[0:4], uint32(len(buf)+HeaderSize))
+	header = make([]byte, HeaderSize)
+	binary.LittleEndian.PutUint32(header[0:4], uint32(len(msgbuf)+HeaderSize))
 	header[4] = byte(mt)
 
 	e.writeLock.Lock()
@@ -236,7 +133,7 @@ func (e *Encoder) WriteMessage(m Message) error {
 		return err
 	}
 
-	if err = write(e.Writer, buf); err != nil {
+	if err = write(e.Writer, msgbuf); err != nil {
 		return err
 	}
 
@@ -246,13 +143,13 @@ func (e *Encoder) WriteMessage(m Message) error {
 // Decoder reads messages from an io.Reader, calling a callback for each of them.
 // message. Unlike Codec.Decode,
 type Decoder struct {
-	Protocol Protocol
-	Callback func(m Message) error
-	Reader   io.Reader
-	Stopped  bool
-	MaxSize  uint32
-	MinBuf   int
-	Sloppy   bool
+	Protocol    Protocol
+	Reader      io.Reader
+	MessageSize uint32
+	Callback    func(m Message) error
+	Stopped     bool
+	MinBuf      int
+	Sloppy      bool
 }
 
 // SetProtocol sets the protocol codec of the Decoder. Replacing the protocol
@@ -272,11 +169,11 @@ func (d *Decoder) SetReader(r io.Reader) {
 	d.Reader = r
 }
 
-// SetMaxSize sets the maxsize of the Decoder. Setting maxsize to higher than
+// SetMessageSize sets the maxsize of the Decoder. Setting maxsize to higher than
 // the current maxsize is not permitted. Setting it lower will not reallocate
 // the buffer, but rather just soft-limit messages.
-func (d *Decoder) SetMaxSize(ms uint32) {
-	d.MaxSize = ms
+func (d *Decoder) SetMessageSize(ms uint32) {
+	d.MessageSize = ms
 }
 
 // If the callback returns an error, the reader returns an error, the message
@@ -286,9 +183,10 @@ func (d *Decoder) Run() error {
 	d.Stopped = false
 
 	if d.MinBuf == 0 {
-		d.MinBuf = DefaultMinBuf
+		d.MinBuf = 1024
 	}
 
+	// To keep things light, the loop does not contain any local declarations.
 	var (
 		// total is the count of bytes in the buffer. It is used to keep track
 		// of buffer usage (read offset and cleanup), and is not used by the
@@ -321,15 +219,33 @@ func (d *Decoder) Run() error {
 		// decoding).
 		m Message
 
+		// mt stores the message type of the currently decoded message.
+		mt MessageType
+
 		// buf is the reading buffer.
-		buf = make([]byte, d.MaxSize)
+		buf = make([]byte, d.MessageSize)
+
+		// newbuf is used for buffer reallocation.
+		newbuf []byte
+
+		// readerr is the error returned from the io.Reader, to be processed on
+		// the next iteration. err is just for generic errors.
+		readerr, err error
+
+		// n is the read count returned from the io.Reader. l is for storing the
+		// buffer length. remaining is for storing the remaining available
+		// buffer.
+		n, l, remaining int
 	)
 
 	for !d.Stopped {
-		n, err := d.Reader.Read(buf[total:])
-		if err != nil {
-			return err
+		if readerr != nil {
+			// We intentionally handle the error on next iteration.
+			return readerr
 		}
+
+		n, readerr = d.Reader.Read(buf[total:])
+
 		total += uint32(n)
 		needed -= n
 
@@ -337,7 +253,7 @@ func (d *Decoder) Run() error {
 		for needed <= 0 {
 			if m == nil { // Read a header if no message struct is set.
 				size = binary.LittleEndian.Uint32(buf[ptr:ptr+4]) - HeaderSize
-				mt := MessageType(buf[ptr+4])
+				mt = MessageType(buf[ptr+4])
 
 				// Update message body size, missing bytes and the current ptr.
 				needed += int(size)
@@ -365,8 +281,8 @@ func (d *Decoder) Run() error {
 		}
 
 		// Buffer checks and reset.
-		l := len(buf)
-		remaining := l - int(total)
+		l = len(buf)
+		remaining = l - int(total)
 		if -needed > l {
 			// The message is longer than the buffer size, so we need to do
 			// *something*.
@@ -384,7 +300,7 @@ func (d *Decoder) Run() error {
 			}
 
 			// Allocate new buffer and copy the content.
-			newbuf := make([]byte, l)
+			newbuf = make([]byte, l)
 			copy(newbuf, buf[ptr:total])
 			buf = newbuf
 			total -= ptr
