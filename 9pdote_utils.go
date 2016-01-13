@@ -1,8 +1,11 @@
 package qp
 
-// MessageTypeToMessageDote returns an empty Message based on the provided
-// message type for 9P2000.e.
-func MessageTypeToMessageDote(mt MessageType) (Message, error) {
+// nineP2000 implements the conversions for 9P2000.e.
+type nineP2000Dote struct{}
+
+// Message returns an empty Message based on the provided message type for
+// 9P2000.e.
+func (nineP2000Dote) Message(mt MessageType) (Message, error) {
 	switch mt {
 	case Tsession:
 		return &SessionRequestDote{}, nil
@@ -17,13 +20,12 @@ func MessageTypeToMessageDote(mt MessageType) (Message, error) {
 	case Rswrite:
 		return &SimpleWriteResponseDote{}, nil
 	default:
-		return MessageTypeToMessage(mt)
+		return NineP2000.Message(mt)
 	}
 }
 
-// MessageToMessageTypeDote returns the message type of a given message for
-// 9P2000.e.
-func MessageToMessageTypeDote(d Message) (MessageType, error) {
+// MessageType returns the message type of a given message for 9P2000.e.
+func (nineP2000Dote) MessageType(d Message) (MessageType, error) {
 	switch d.(type) {
 	case *SessionRequestDote:
 		return Tsession, nil
@@ -38,6 +40,6 @@ func MessageToMessageTypeDote(d Message) (MessageType, error) {
 	case *SimpleWriteResponseDote:
 		return Rswrite, nil
 	default:
-		return MessageToMessageType(d)
+		return NineP2000.MessageType(d)
 	}
 }

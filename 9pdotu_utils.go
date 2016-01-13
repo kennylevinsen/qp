@@ -1,8 +1,11 @@
 package qp
 
-// MessageTypeToMessageDotu returns an empty Message based on the provided
-// message type for 9P2000.u.
-func MessageTypeToMessageDotu(mt MessageType) (Message, error) {
+// nineP2000 implements the conversions for 9P2000.u.
+type nineP2000Dotu struct{}
+
+// Message returns an empty Message based on the provided message type for
+// 9P2000.u.
+func (nineP2000Dotu) Message(mt MessageType) (Message, error) {
 	switch mt {
 	case Tauth:
 		return &AuthRequestDotu{}, nil
@@ -17,13 +20,12 @@ func MessageTypeToMessageDotu(mt MessageType) (Message, error) {
 	case Twstat:
 		return &WriteStatRequestDotu{}, nil
 	default:
-		return MessageTypeToMessage(mt)
+		return NineP2000.Message(mt)
 	}
 }
 
-// MessageToMessageTypeDotu returns the message type of a given message for
-// 9P2000.u.
-func MessageToMessageTypeDotu(d Message) (MessageType, error) {
+// MessageType returns the message type of a given message for 9P2000.u.
+func (nineP2000Dotu) MessageType(d Message) (MessageType, error) {
 	switch d.(type) {
 	case *AuthRequestDotu:
 		return Tauth, nil
@@ -38,6 +40,6 @@ func MessageToMessageTypeDotu(d Message) (MessageType, error) {
 	case *WriteStatRequestDotu:
 		return Twstat, nil
 	default:
-		return MessageToMessageType(d)
+		return NineP2000.MessageType(d)
 	}
 }

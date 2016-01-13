@@ -5,9 +5,11 @@ import "errors"
 // ErrUnknownMessageType is used to indicate an unknown type of message.
 var ErrUnknownMessageType = errors.New("unknown message type")
 
-// MessageTypeToMessage returns an empty Message based on the provided message
-// type.
-func MessageTypeToMessage(mt MessageType) (Message, error) {
+// nineP2000 implements the conversions for 9P2000.
+type nineP2000 struct{}
+
+// Message returns an empty Message based on the provided message type.
+func (nineP2000) Message(mt MessageType) (Message, error) {
 	switch mt {
 	case Tversion:
 		return &VersionRequest{}, nil
@@ -68,8 +70,8 @@ func MessageTypeToMessage(mt MessageType) (Message, error) {
 	}
 }
 
-// MessageToMessageType returns the message type of a given message.
-func MessageToMessageType(d Message) (MessageType, error) {
+// MessageType returns the message type of a given message.
+func (nineP2000) MessageType(d Message) (MessageType, error) {
 	switch d.(type) {
 	case *VersionRequest:
 		return Tversion, nil

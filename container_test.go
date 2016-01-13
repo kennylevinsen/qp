@@ -37,54 +37,95 @@ func TestDecoder(t *testing.T) {
 	provided := inputbuf.Len()
 
 	// Prepare decoder
-
-	responseCount := 0
-	responses := make([]Message, len(MessageTestData)*reruns)
 	d := Decoder{
 		Protocol:    NineP2000,
 		Reader:      r,
 		MessageSize: 1024,
-		Callback: func(m Message) error {
-			// The callback is called synchronously, so direct access is okay.
-			responses[responseCount] = m
-			responseCount++
-			return nil
-		},
 	}
+	d.Reset()
 
 	// Run decoder
 
+	//  Time limit
 	donech := make(chan bool, 1)
 	go func() {
-		err := d.Run()
-		if err != nil && err != io.EOF {
-			t.Errorf("decoder failed: %v", err)
+		select {
+		case <-time.After(5 * time.Second):
+			t.Errorf("decoder never terminated: %d bytes read, %d bytes provided", provided-inputbuf.Len(), provided)
+		case <-donech:
 		}
-		donech <- true
 	}()
-
-	select {
-	case <-time.After(10 * time.Second):
-		t.Errorf("decoder never terminated: %d bytes read, %d bytes provided", provided-inputbuf.Len(), provided)
-	case <-donech:
-	}
-
-	// Check the results
-
-	if len(responses) != len(MessageTestData)*reruns {
-		t.Errorf("too many messages.\n\tExpected %d\n\tGot: %d", len(MessageTestData)*reruns, len(responses))
-	}
 
 	for y := 0; y < reruns; y++ {
 		for i := range MessageTestData {
 			mtd := MessageTestData[i].input
-			m := responses[0]
-			responses = responses[1:]
+			m, err := d.NextMessage()
+			if err != nil {
+				t.Fatalf("test %dx%d: failed on %T with error: %v", y, i, mtd, err)
+			}
 			if !CompareMarshallables(mtd, m) {
 				t.Errorf("test %dx%d: failed on %T\n\tExpected: %#v\n\tGot:      %#v", y, i, mtd, mtd, m)
 			}
 		}
 	}
+
+	donech <- true
+
+	if inputbuf.Len() > 0 {
+		t.Errorf("buffer has unread data: %d bytes read, %d bytes provided", provided-inputbuf.Len(), provided)
+	}
+}
+
+func TestDecoderGreedy(t *testing.T) {
+	// Prepare the input
+
+	inputbuf := new(bytes.Buffer)
+	r := &ByteReader{Reader: inputbuf}
+
+	// We write the 9P test-set reruns' times to have a decent amount of data.
+	for y := 0; y < reruns; y++ {
+		for _, tt := range MessageTestData {
+			inputbuf.Write(tt.container)
+		}
+	}
+
+	provided := inputbuf.Len()
+
+	// Prepare decoder
+	d := Decoder{
+		Protocol:    NineP2000,
+		Reader:      r,
+		MessageSize: 1024,
+		Greedy:      true,
+	}
+	d.Reset()
+
+	// Run decoder
+
+	//  Time limit
+	donech := make(chan bool, 1)
+	go func() {
+		select {
+		case <-time.After(5 * time.Second):
+			t.Errorf("decoder never terminated: %d bytes read, %d bytes provided", provided-inputbuf.Len(), provided)
+		case <-donech:
+		}
+	}()
+
+	for y := 0; y < reruns; y++ {
+		for i := range MessageTestData {
+			mtd := MessageTestData[i].input
+			m, err := d.NextMessage()
+			if err != nil {
+				t.Fatalf("test %dx%d: failed on %T with error: %v", y, i, mtd, err)
+			}
+			if !CompareMarshallables(mtd, m) {
+				t.Errorf("test %dx%d: failed on %T\n\tExpected: %#v\n\tGot:      %#v", y, i, mtd, mtd, m)
+			}
+		}
+	}
+
+	donech <- true
 
 	if inputbuf.Len() > 0 {
 		t.Errorf("buffer has unread data: %d bytes read, %d bytes provided", provided-inputbuf.Len(), provided)

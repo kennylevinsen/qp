@@ -42,10 +42,7 @@ import "encoding/binary"
 //    Qid:  type[1] version[4] path[8]
 //    Stat: size[2] type[2] dev[4] qid[13] mode[4] atime[4] mtime[4] length[8]
 //              name[s] uid[s] gid[s] muid[s]
-var NineP2000 Protocol = &Codec{
-	M2MT: MessageToMessageType,
-	MT2M: MessageTypeToMessage,
-}
+var NineP2000 Protocol = nineP2000{}
 
 // Tag is a unique identifier for a request. It is echoed by the response. It
 // is the responsibility of the client to ensure that it is unique among all

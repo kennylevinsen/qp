@@ -26,10 +26,7 @@ import "encoding/binary"
 // 9P2000.u replaces the following supporting structures:
 //    StatDotu: size[2] type[2] dev[4] qid[13] mode[4] atime[4] mtime[4] length[8]
 //                  name[s] uid[s] gid[s] muid[s] extensions[s] nuid[4] ngid[4] nmuid[4]
-var NineP2000Dotu Protocol = &Codec{
-	M2MT: MessageToMessageTypeDotu,
-	MT2M: MessageTypeToMessageDotu,
-}
+var NineP2000Dotu Protocol = &nineP2000Dotu{}
 
 // StatDotu is the 9P2000.u version of the Stat struct. It adds Extensions,
 // UIDno, GIDno and MUIDno fields in an attempt to improve compatibility with
