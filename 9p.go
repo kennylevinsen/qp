@@ -774,8 +774,8 @@ func (or *OpenRequest) MarshalBinary() ([]byte, error) {
 }
 
 // OpenResponse returns the qid of the file, as well as iounit, which is a
-// read/write size that is guaranteed to be sucessfully written/read, or 0 for
-// no such guarantee.
+// read/write size that is guaranteed to be successfully written/read, or 0
+// for no such guarantee.
 type OpenResponse struct {
 	Tag
 
@@ -871,8 +871,8 @@ func (cr *CreateRequest) MarshalBinary() ([]byte, error) {
 }
 
 // CreateResponse returns the qid of the file, as well as iounit, which is a
-// read/write size that is guaranteed to be sucessfully written/read, or 0 for
-// no such guarantee.
+// read/write size that is guaranteed to be successfully written/read, or 0
+// for no such guarantee.
 type CreateResponse struct {
 	Tag
 
