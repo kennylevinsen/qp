@@ -39,7 +39,7 @@ type Message interface {
 	GetTag() Tag
 }
 
-// Write write all the provided data unless and io error occurs.
+// write writes all the provided data unless an error occurs.
 func write(w io.Writer, b []byte) error {
 	var (
 		written int
@@ -199,7 +199,7 @@ func (d *Decoder) NextMessage() (Message, error) {
 		n, limit, total int
 	)
 	for {
-		// Handle the data we got
+		// Handle the data we got.
 		for d.needed <= 0 {
 			if d.m == nil { // Read a header if no message has been prepared.
 				s := binary.LittleEndian.Uint32(d.buffer[d.ptr : d.ptr+4])
@@ -254,6 +254,7 @@ func (d *Decoder) NextMessage() (Message, error) {
 			d.ptr = 0
 		}
 
+		// Should we limit the read?
 		if !d.Greedy && limit > total+d.needed {
 			limit = total + d.needed
 		}
