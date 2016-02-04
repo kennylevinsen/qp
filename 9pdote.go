@@ -16,7 +16,7 @@ import "encoding/binary"
 //    SimpleReadResponseDote:  size[4] Rsread tag[2] count[4] data[count]
 //    SimpleWriteRequestDote:  size[4] Tswrite tag[2] fid[4] nwname[2] nwname*(wname[s]) count[4] data[count]
 //    SimpleWriteResponseDote: size[4] Rswrite tag[2] count[4]
-var NineP2000Dote Protocol = nineP2000Dote{}
+var NineP2000Dote = nineP2000Dote{}
 
 // SessionRequestDote is used to restore a previous session. The key
 // representing the session must have been obtained in the previous session

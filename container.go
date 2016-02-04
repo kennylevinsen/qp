@@ -126,7 +126,7 @@ type Decoder struct {
 	// This can save significant amount of Read calls, but must not be set if
 	// the user intents to change the reader soon, as it may result in losing
 	// a partial read. A common thing to do would be to enable Greedy after
-	// having performed negotiated the final message size, as well as
+	// protocol negotiation.
 	Greedy bool
 
 	// MessageSize is the maximum message size negotiated for the protocol. It
@@ -170,9 +170,9 @@ type Decoder struct {
 
 // Reset resets the decoding state machine and reallocates the buffer to the
 // current MessageSize. Reset will return an error if the buffer isn't empty,
-// which may be the case if Greedy decoding is enabled.
+// which may be the case if Greedy decoding has already been used.
 func (d *Decoder) Reset() error {
-	if len(d.buffer) > 0 {
+	if d.total > 0 {
 		return errors.New("buffer is not empty")
 	}
 	d.total = 0
@@ -184,11 +184,34 @@ func (d *Decoder) Reset() error {
 	return nil
 }
 
-// NextMessage executes the decoder loop, returning the next message. It will
-// continue reading from the configured reader until a message is found or an
-// error occurs. NextMessage calls Reset if the internal buffer is nil for
-// initialization.
-func (d *Decoder) NextMessage() (Message, error) {
+// simpleNext is an inefficient but safe and stateless decoding mechanism.
+func (d *Decoder) simpleNext() (Message, error) {
+	b := make([]byte, 5)
+	_, err := io.ReadFull(d.Reader, b)
+	if err != nil {
+		return nil, err
+	}
+
+	s := binary.LittleEndian.Uint32(b[0:4]) - HeaderSize
+	mt := MessageType(b[4])
+	m, err := d.Protocol.Message(mt)
+	if err != nil {
+		return nil, err
+	}
+
+	b = make([]byte, s)
+	_, err = io.ReadFull(d.Reader, b)
+	if err != nil {
+		return nil, err
+	}
+
+	err = m.UnmarshalBinary(b)
+	return m, err
+}
+
+// greedyNext is complicated and unsafe (parameters cannot be changed). The
+// upside is that it can save a considerable amount of syscalls.
+func (d *Decoder) greedyNext() (Message, error) {
 	if d.buffer == nil {
 		// Let's initialize.
 		d.Reset()
@@ -254,14 +277,20 @@ func (d *Decoder) NextMessage() (Message, error) {
 			d.ptr = 0
 		}
 
-		// Should we limit the read?
-		if !d.Greedy && limit > total+d.needed {
-			limit = total + d.needed
-		}
-
 		// We need more data!
 		n, readerr = d.Reader.Read(d.buffer[d.total:limit])
 		d.total += uint32(n)
 		d.needed -= n
 	}
+}
+
+// NextMessage executes the decoder loop, returning the next message. It will
+// continue reading from the configured reader until a message is found or an
+// error occurs. NextMessage calls Reset if the internal buffer is nil for
+// initialization.
+func (d *Decoder) NextMessage() (Message, error) {
+	if d.Greedy {
+		return d.greedyNext()
+	}
+	return d.simpleNext()
 }
