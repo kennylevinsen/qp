@@ -39,23 +39,6 @@ type Message interface {
 	GetTag() Tag
 }
 
-// write writes all the provided data unless an error occurs.
-func write(w io.Writer, b []byte) error {
-	var (
-		written int
-		err     error
-		l       = len(b)
-	)
-	for written < l {
-		written, err = w.Write(b[written:])
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 // Encoder handles writes encoded messages to an io.Writer.
 type Encoder struct {
 	// Protocol is the protocol codec used for encoding messages.
@@ -101,11 +84,11 @@ func (e *Encoder) WriteMessage(m Message) error {
 	e.writeLock.Lock()
 	defer e.writeLock.Unlock()
 
-	if err = write(e.Writer, header); err != nil {
+	if _, err = e.Writer.Write(header); err != nil {
 		return err
 	}
 
-	if err = write(e.Writer, msgbuf); err != nil {
+	if _, err = e.Writer.Write(msgbuf); err != nil {
 		return err
 	}
 
