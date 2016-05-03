@@ -59,7 +59,7 @@ func TestDecoder(t *testing.T) {
 	for y := 0; y < reruns; y++ {
 		for i := range MessageTestData {
 			mtd := MessageTestData[i].input
-			m, err := d.NextMessage()
+			m, err := d.ReadMessage()
 			if err != nil {
 				t.Fatalf("test %dx%d: failed on %T with error: %v", y, i, mtd, err)
 			}
@@ -115,7 +115,7 @@ func TestDecoderGreedy(t *testing.T) {
 	for y := 0; y < reruns; y++ {
 		for i := range MessageTestData {
 			mtd := MessageTestData[i].input
-			m, err := d.NextMessage()
+			m, err := d.ReadMessage()
 			if err != nil {
 				t.Fatalf("test %dx%d: failed on %T with error: %v", y, i, mtd, err)
 			}

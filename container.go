@@ -39,7 +39,8 @@ type Message interface {
 	GetTag() Tag
 }
 
-// Encoder handles writes encoded messages to an io.Writer.
+// Encoder handles writes encoded messages to an io.Writer. Encoder is thread
+// safe, and may be called in parallel from arbitrary goroutines.
 type Encoder struct {
 	// Protocol is the protocol codec used for encoding messages.
 	Protocol Protocol
@@ -95,8 +96,9 @@ func (e *Encoder) WriteMessage(m Message) error {
 	return nil
 }
 
-// Decoder reads messages from an io.Reader, calling a callback for each of them.
-// message. Unlike Codec.Decode,
+// Decoder reads messages from an io.Reader. It exposes buffered reading through
+// ReadMessage. A Decoder is not thread safe. Only one goroutine may call
+// ReadMessage at a time.
 type Decoder struct {
 	// Protocol is the protocol codec used for decoding messages.
 	Protocol Protocol
@@ -167,8 +169,8 @@ func (d *Decoder) Reset() error {
 	return nil
 }
 
-// simpleNext is an inefficient but safe and stateless decoding mechanism.
-func (d *Decoder) simpleNext() (Message, error) {
+// simpleRead is an inefficient but safe and stateless decoding mechanism.
+func (d *Decoder) simpleRead() (Message, error) {
 	b := make([]byte, 5)
 	_, err := io.ReadFull(d.Reader, b)
 	if err != nil {
@@ -192,9 +194,9 @@ func (d *Decoder) simpleNext() (Message, error) {
 	return m, err
 }
 
-// greedyNext is complicated and unsafe (parameters cannot be changed). The
+// greedyRead is complicated and unsafe (parameters cannot be changed). The
 // upside is that it can save a considerable amount of syscalls.
-func (d *Decoder) greedyNext() (Message, error) {
+func (d *Decoder) greedyRead() (Message, error) {
 	if d.buffer == nil {
 		// Let's initialize.
 		d.Reset()
@@ -267,13 +269,13 @@ func (d *Decoder) greedyNext() (Message, error) {
 	}
 }
 
-// NextMessage executes the decoder loop, returning the next message. It will
+// ReadMessage executes the decoder loop, returning the next message. It will
 // continue reading from the configured reader until a message is found or an
 // error occurs. NextMessage calls Reset if the internal buffer is nil for
 // initialization.
-func (d *Decoder) NextMessage() (Message, error) {
+func (d *Decoder) ReadMessage() (Message, error) {
 	if d.Greedy {
-		return d.greedyNext()
+		return d.greedyRead()
 	}
-	return d.simpleNext()
+	return d.simpleRead()
 }
