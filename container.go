@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
-	"sync"
 )
 
 var (
@@ -39,8 +38,8 @@ type Message interface {
 	GetTag() Tag
 }
 
-// Encoder handles writes encoded messages to an io.Writer. Encoder is thread
-// safe, and may be called in parallel from arbitrary goroutines.
+// Encoder handles writes encoded messages to an io.Writer. An Encoder is not
+// thread safe. Only one goroutine may call WriteMessage at a time.
 type Encoder struct {
 	// Protocol is the protocol codec used for encoding messages.
 	Protocol Protocol
@@ -51,10 +50,6 @@ type Encoder struct {
 	// MessageSize is the maximum message size negotiated for the protocol. It
 	// is used to enforce a limit on writes.
 	MessageSize uint32
-
-	// writeLock is used to synchronize writes. Without it, messages would end
-	// up interleaved and incomprehensible.
-	writeLock sync.Mutex
 }
 
 // WriteMessage encodes a message and writes it to the Encoders associated
@@ -81,9 +76,6 @@ func (e *Encoder) WriteMessage(m Message) error {
 	header = make([]byte, HeaderSize)
 	binary.LittleEndian.PutUint32(header[0:4], uint32(len(msgbuf)+HeaderSize))
 	header[4] = byte(mt)
-
-	e.writeLock.Lock()
-	defer e.writeLock.Unlock()
 
 	if _, err = e.Writer.Write(header); err != nil {
 		return err
