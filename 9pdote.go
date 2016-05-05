@@ -256,8 +256,3 @@ func (swr *SimpleWriteResponseDote) MarshalBinary() ([]byte, error) {
 	binary.LittleEndian.PutUint32(b[2:6], swr.Count)
 	return b, nil
 }
-
-// EncodedLength returns the length the message will be when serialized.
-func (swr *SimpleWriteResponseDote) EncodedLength() int {
-	return 2 + 4
-}
