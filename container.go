@@ -157,7 +157,7 @@ type Decoder struct {
 // current MessageSize. Reset will return an error if the buffer isn't empty,
 // which may be the case if Greedy decoding has already been used.
 func (d *Decoder) Reset() error {
-	if d.total > 0 {
+	if d.total-d.ptr != 0 {
 		return errors.New("buffer is not empty")
 	}
 	d.total = 0
