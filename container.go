@@ -1,7 +1,6 @@
 package qp
 
 import (
-	"encoding"
 	"encoding/binary"
 	"errors"
 	"io"
@@ -34,8 +33,9 @@ type MessageType byte
 // message tag, which is merely a convenience feature to save a type assert
 // for access to the tag.
 type Message interface {
-	encoding.BinaryUnmarshaler
-	encoding.BinaryMarshaler
+	Marshal(b []byte) error
+	Unmarshal(b []byte) error
+	EncodedSize() int
 	GetTag() Tag
 }
 
@@ -61,39 +61,27 @@ type Encoder struct {
 // io.Writer.
 func (e *Encoder) WriteMessage(m Message) error {
 	var (
-		mt             MessageType
-		msgbuf, header []byte
-		err            error
+		mt  MessageType
+		err error
 	)
 
 	if mt, err = e.Protocol.MessageType(m); err != nil {
 		return err
 	}
 
-	if msgbuf, err = m.MarshalBinary(); err != nil {
+	buf := make([]byte, m.EncodedSize()+HeaderSize)
+	binary.LittleEndian.PutUint32(buf[0:4], uint32(len(buf)))
+	buf[4] = byte(mt)
+
+	if err := m.Marshal(buf[5:]); err != nil {
 		return err
 	}
-
-	if len(msgbuf)+HeaderSize > int(e.MessageSize) {
-		return ErrMessageTooBig
-	}
-
-	header = make([]byte, HeaderSize)
-	binary.LittleEndian.PutUint32(header[0:4], uint32(len(msgbuf)+HeaderSize))
-	header[4] = byte(mt)
 
 	e.writeLock.Lock()
 	defer e.writeLock.Unlock()
 
-	if _, err = e.Writer.Write(header); err != nil {
-		return err
-	}
-
-	if _, err = e.Writer.Write(msgbuf); err != nil {
-		return err
-	}
-
-	return nil
+	_, err = e.Writer.Write(buf)
+	return err
 }
 
 // Decoder reads messages from an io.Reader. It exposes buffered reading through
@@ -190,7 +178,7 @@ func (d *Decoder) simpleRead() (Message, error) {
 		return nil, err
 	}
 
-	err = m.UnmarshalBinary(b)
+	err = m.Unmarshal(b)
 	return m, err
 }
 
@@ -229,7 +217,7 @@ func (d *Decoder) greedyRead() (Message, error) {
 				}
 
 			} else { // Otherwise, read a body for the message.
-				if err = d.m.UnmarshalBinary(d.buffer[d.ptr : d.ptr+d.size]); err != nil {
+				if err = d.m.Unmarshal(d.buffer[d.ptr : d.ptr+d.size]); err != nil {
 					return nil, err
 				}
 

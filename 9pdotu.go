@@ -79,8 +79,68 @@ type StatDotu struct {
 	MUIDno uint32
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (s *StatDotu) UnmarshalBinary(b []byte) error {
+func (s *StatDotu) EncodedSize() int {
+	return 2 + 2 + 4 + 13 + 4 + 4 + 4 + 8 + 2 + 2 + 2 + 2 + 2 + 4 + 4 + 4 +
+	 len(s.Name) + len(s.UID) + len(s.GID) + len(s.MUID) + len(s.Extensions)
+}
+
+func (s *StatDotu) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[2:4], s.Type)
+	binary.LittleEndian.PutUint32(b[4:8], s.Dev)
+
+	// Qid
+	b[8] = byte(s.Qid.Type)
+	binary.LittleEndian.PutUint32(b[9:13], s.Qid.Version)
+	binary.LittleEndian.PutUint64(b[13:21], s.Qid.Path)
+	binary.LittleEndian.PutUint32(b[21:25], uint32(s.Mode))
+	binary.LittleEndian.PutUint32(b[25:29], s.Atime)
+	binary.LittleEndian.PutUint32(b[29:33], s.Mtime)
+	binary.LittleEndian.PutUint64(b[33:41], s.Length)
+
+	// Variable things
+	// Name
+	idx := 41
+	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(s.Name)))
+	idx += 2
+	copy(b[idx:], []byte(s.Name))
+	idx += len(s.Name)
+
+	// UID
+	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(s.UID)))
+	idx += 2
+	copy(b[idx:], []byte(s.UID))
+	idx += len(s.UID)
+
+	// GID
+	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(s.GID)))
+	idx += 2
+	copy(b[idx:], []byte(s.GID))
+	idx += len(s.GID)
+
+	// MUID
+	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(s.MUID)))
+	idx += 2
+	copy(b[idx:], []byte(s.MUID))
+	idx += len(s.MUID)
+
+	// Extensions
+	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(s.Extensions)))
+	idx += 2
+	copy(b[idx:], []byte(s.Extensions))
+	idx += len(s.Extensions)
+
+	// UIDno, GIDno, MUIDno
+	binary.LittleEndian.PutUint32(b[idx:idx+4], s.UIDno)
+	binary.LittleEndian.PutUint32(b[idx+4:idx+8], s.GIDno)
+	binary.LittleEndian.PutUint32(b[idx+8:idx+12], s.MUIDno)
+	idx += 12
+
+	// Length prefix
+	binary.LittleEndian.PutUint16(b[0:2], uint16(idx-2))
+	return nil
+}
+
+func (s *StatDotu) Unmarshal(b []byte) error {
 	t := 2 + 2 + 4 + 13 + 4 + 4 + 4 + 8 + 2 + 2 + 2 + 2 + 2 + 4 + 4 + 4
 	if len(b) < t {
 		return ErrPayloadTooShort
@@ -155,62 +215,6 @@ func (s *StatDotu) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
-// MarshalBinary marshals the message into a byte slice.
-func (s *StatDotu) MarshalBinary() ([]byte, error) {
-	l := 2 + 2 + 4 + 13 + 4 + 4 + 4 + 8 + 2 + 2 + 2 + 2 + 2 + 4 + 4 + 4 + len(s.Name) + len(s.UID) + len(s.GID) + len(s.MUID) + len(s.Extensions)
-	b := make([]byte, l)
-	binary.LittleEndian.PutUint16(b[0:2], uint16(l-2))
-	binary.LittleEndian.PutUint16(b[2:4], s.Type)
-	binary.LittleEndian.PutUint32(b[4:8], s.Dev)
-
-	// Qid
-	b[8] = byte(s.Qid.Type)
-	binary.LittleEndian.PutUint32(b[9:13], s.Qid.Version)
-	binary.LittleEndian.PutUint64(b[13:21], s.Qid.Path)
-	binary.LittleEndian.PutUint32(b[21:25], uint32(s.Mode))
-	binary.LittleEndian.PutUint32(b[25:29], s.Atime)
-	binary.LittleEndian.PutUint32(b[29:33], s.Mtime)
-	binary.LittleEndian.PutUint64(b[33:41], s.Length)
-
-	// Variable things
-	// Name
-	idx := 41
-	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(s.Name)))
-	idx += 2
-	copy(b[idx:], []byte(s.Name))
-	idx += len(s.Name)
-
-	// UID
-	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(s.UID)))
-	idx += 2
-	copy(b[idx:], []byte(s.UID))
-	idx += len(s.UID)
-
-	// GID
-	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(s.GID)))
-	idx += 2
-	copy(b[idx:], []byte(s.GID))
-	idx += len(s.GID)
-
-	// MUID
-	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(s.MUID)))
-	idx += 2
-	copy(b[idx:], []byte(s.MUID))
-	idx += len(s.MUID)
-
-	// Extensions
-	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(s.Extensions)))
-	idx += 2
-	copy(b[idx:], []byte(s.Extensions))
-	idx += len(s.Extensions)
-
-	// UIDno, GIDno, MUIDno
-	binary.LittleEndian.PutUint32(b[idx:idx+4], s.UIDno)
-	binary.LittleEndian.PutUint32(b[idx+4:idx+8], s.GIDno)
-	binary.LittleEndian.PutUint32(b[idx+8:idx+12], s.MUIDno)
-	return b, nil
-}
-
 // AuthRequestDotu is the 9P2000.u version of AuthRequestDotu. It adds UIDno,
 // for compatibility with platforms that use numeric user IDs. UIDno takes
 // precedence over Username.
@@ -230,8 +234,26 @@ type AuthRequestDotu struct {
 	UIDno uint32
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (ar *AuthRequestDotu) UnmarshalBinary(b []byte) error {
+func (ar *AuthRequestDotu) EncodedSize() int {
+	return 2+4+2+len(ar.Username)+2+len(ar.Service)+4
+}
+
+func (ar *AuthRequestDotu) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[0:2], uint16(ar.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(ar.AuthFid))
+
+	binary.LittleEndian.PutUint16(b[6:8], uint16(len(ar.Username)))
+	copy(b[8:], []byte(ar.Username))
+	idx := 8 + len(ar.Username)
+
+	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(ar.Service)))
+	copy(b[idx+2:], []byte(ar.Service))
+	idx += 2 + len(ar.Service)
+	binary.LittleEndian.PutUint32(b[idx:idx+4], ar.UIDno)
+	return nil
+}
+
+func (ar *AuthRequestDotu) Unmarshal(b []byte) error {
 	t := 2 + 4 + 2 + 2 + 4
 	if len(b) < t {
 		return ErrPayloadTooShort
@@ -258,23 +280,6 @@ func (ar *AuthRequestDotu) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
-// MarshalBinary marshals the message into a byte slice.
-func (ar *AuthRequestDotu) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 2+4+2+len(ar.Username)+2+len(ar.Service)+4)
-	binary.LittleEndian.PutUint16(b[0:2], uint16(ar.Tag))
-	binary.LittleEndian.PutUint32(b[2:6], uint32(ar.AuthFid))
-
-	binary.LittleEndian.PutUint16(b[6:8], uint16(len(ar.Username)))
-	copy(b[8:], []byte(ar.Username))
-	idx := 8 + len(ar.Username)
-
-	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(ar.Service)))
-	copy(b[idx+2:], []byte(ar.Service))
-	idx += 2 + len(ar.Service)
-	binary.LittleEndian.PutUint32(b[idx:idx+4], ar.UIDno)
-	return b, nil
-}
-
 // AttachRequestDotu is the 9P2000.u version of AttachRequestDotu. It adds
 // UIDno, for compatibility with platforms that use numeric user IDs. UIDno
 // takes precedence over Username.
@@ -298,8 +303,27 @@ type AttachRequestDotu struct {
 	UIDno uint32
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (ar *AttachRequestDotu) UnmarshalBinary(b []byte) error {
+func (ar *AttachRequestDotu) EncodedSize() int {
+	return 2+4+4+2+len(ar.Username)+2+len(ar.Service)+4	
+}
+
+func (ar *AttachRequestDotu) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[0:2], uint16(ar.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(ar.Fid))
+	binary.LittleEndian.PutUint32(b[6:10], uint32(ar.AuthFid))
+
+	binary.LittleEndian.PutUint16(b[10:12], uint16(len(ar.Username)))
+	copy(b[12:], []byte(ar.Username))
+	idx := 12 + len(ar.Username)
+
+	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(ar.Service)))
+	copy(b[idx+2:], []byte(ar.Service))
+	idx += 2 + len(ar.Service)
+	binary.LittleEndian.PutUint32(b[idx:idx+4], ar.UIDno)
+	return nil
+}
+
+func (ar *AttachRequestDotu) Unmarshal(b []byte) error {
 	t := 2 + 4 + 4 + 2 + 2 + 4
 	if len(b) < t {
 		return ErrPayloadTooShort
@@ -327,24 +351,6 @@ func (ar *AttachRequestDotu) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
-// MarshalBinary marshals the message into a byte slice.
-func (ar *AttachRequestDotu) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 2+4+4+2+len(ar.Username)+2+len(ar.Service)+4)
-	binary.LittleEndian.PutUint16(b[0:2], uint16(ar.Tag))
-	binary.LittleEndian.PutUint32(b[2:6], uint32(ar.Fid))
-	binary.LittleEndian.PutUint32(b[6:10], uint32(ar.AuthFid))
-
-	binary.LittleEndian.PutUint16(b[10:12], uint16(len(ar.Username)))
-	copy(b[12:], []byte(ar.Username))
-	idx := 12 + len(ar.Username)
-
-	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(ar.Service)))
-	copy(b[idx+2:], []byte(ar.Service))
-	idx += 2 + len(ar.Service)
-	binary.LittleEndian.PutUint32(b[idx:idx+4], ar.UIDno)
-	return b, nil
-}
-
 // ErrorResponseDotu is the 9P2000.u version of ErrorResponse. It adds Errno
 // in an attempt to improve compatibility with platforms that use numeric
 // errors. Errno takes precedence over Error.
@@ -358,8 +364,20 @@ type ErrorResponseDotu struct {
 	Errno uint32
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (er *ErrorResponseDotu) UnmarshalBinary(b []byte) error {
+func (er *ErrorResponseDotu) EncodedSize() int {
+	return 2+2+len(er.Error)+4
+}
+
+func (er *ErrorResponseDotu) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[0:2], uint16(er.Tag))
+	binary.LittleEndian.PutUint16(b[2:4], uint16(len(er.Error)))
+	copy(b[4:], []byte(er.Error))
+	idx := 4 + len(er.Error)
+	binary.LittleEndian.PutUint32(b[idx:idx+4], er.Errno)
+	return nil
+}
+
+func (er *ErrorResponseDotu) Unmarshal(b []byte) error {
 	t := 2 + 2 + 4
 	if len(b) < t {
 		return ErrPayloadTooShort
@@ -375,17 +393,6 @@ func (er *ErrorResponseDotu) UnmarshalBinary(b []byte) error {
 
 	er.Errno = binary.LittleEndian.Uint32(b[4+l : 4+l+4])
 	return nil
-}
-
-// MarshalBinary marshals the message into a byte slice.
-func (er *ErrorResponseDotu) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 2+2+len(er.Error)+4)
-	binary.LittleEndian.PutUint16(b[0:2], uint16(er.Tag))
-	binary.LittleEndian.PutUint16(b[2:4], uint16(len(er.Error)))
-	copy(b[4:], []byte(er.Error))
-	idx := 4 + len(er.Error)
-	binary.LittleEndian.PutUint32(b[idx:idx+4], er.Errno)
-	return b, nil
 }
 
 // CreateRequestDotu is the 9P2000.u version of CreateRequest. It adds
@@ -410,8 +417,29 @@ type CreateRequestDotu struct {
 	Extensions string
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (cr *CreateRequestDotu) UnmarshalBinary(b []byte) error {
+func (cr *CreateRequestDotu) EncodedSize() int {
+	return 2+4+2+len(cr.Name)+4+1+2+len(cr.Extensions)
+}
+
+func (cr *CreateRequestDotu) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[0:2], uint16(cr.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(cr.Fid))
+	binary.LittleEndian.PutUint16(b[6:8], uint16(len(cr.Name)))
+
+	idx := 8
+	copy(b[idx:idx+len(cr.Name)], []byte(cr.Name))
+	idx += len(cr.Name)
+
+	binary.LittleEndian.PutUint32(b[idx:idx+4], uint32(cr.Permissions))
+	b[idx+4] = byte(cr.Mode)
+	idx += 5
+
+	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(cr.Extensions)))
+	copy(b[idx+2:], []byte(cr.Extensions))
+	return nil
+}
+
+func (cr *CreateRequestDotu) Unmarshal(b []byte) error {
 	t := 2 + 4 + 2 + 4 + 1 + 2
 	if len(b) < t {
 		return ErrPayloadTooShort
@@ -442,26 +470,6 @@ func (cr *CreateRequestDotu) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
-// MarshalBinary marshals the message into a byte slice.
-func (cr *CreateRequestDotu) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 2+4+2+len(cr.Name)+4+1+2+len(cr.Extensions))
-	binary.LittleEndian.PutUint16(b[0:2], uint16(cr.Tag))
-	binary.LittleEndian.PutUint32(b[2:6], uint32(cr.Fid))
-	binary.LittleEndian.PutUint16(b[6:8], uint16(len(cr.Name)))
-
-	idx := 8
-	copy(b[idx:idx+len(cr.Name)], []byte(cr.Name))
-	idx += len(cr.Name)
-
-	binary.LittleEndian.PutUint32(b[idx:idx+4], uint32(cr.Permissions))
-	b[idx+4] = byte(cr.Mode)
-	idx += 5
-
-	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(cr.Extensions)))
-	copy(b[idx+2:], []byte(cr.Extensions))
-	return b, nil
-}
-
 // StatResponseDotu is the 9P2000.u version of StatResponse. It uses a
 // different stat struct, StatDotu.
 type StatResponseDotu struct {
@@ -471,28 +479,23 @@ type StatResponseDotu struct {
 	Stat StatDotu
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (sr *StatResponseDotu) UnmarshalBinary(b []byte) error {
+func (sr *StatResponseDotu) EncodedSize() int {
+	return 2 + 2 + sr.Stat.EncodedSize()
+}
+
+func (sr *StatResponseDotu) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[0:2], uint16(sr.Tag))
+	binary.LittleEndian.PutUint16(b[2:4], uint16(sr.Stat.EncodedSize()))
+	return sr.Stat.Marshal(b[4:])
+}
+
+func (sr *StatResponseDotu) Unmarshal(b []byte) error {
 	if len(b) < 2+2 {
 		return ErrPayloadTooShort
 	}
 
 	sr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
-	return sr.Stat.UnmarshalBinary(b[4:])
-}
-
-// MarshalBinary marshals the message into a byte slice.
-func (sr *StatResponseDotu) MarshalBinary() ([]byte, error) {
-	x, err := sr.Stat.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-
-	b := make([]byte, 2+2+len(x))
-	binary.LittleEndian.PutUint16(b[0:2], uint16(sr.Tag))
-	binary.LittleEndian.PutUint16(b[2:4], uint16(len(x)))
-	copy(b[4:], x)
-	return b, nil
+	return sr.Stat.Unmarshal(b[4:])
 }
 
 // WriteStatRequestDotu is the 9P2000.u version of WriteStatRequest. It uses a
@@ -507,28 +510,23 @@ type WriteStatRequestDotu struct {
 	Stat StatDotu
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (wsr *WriteStatRequestDotu) UnmarshalBinary(b []byte) error {
+func (wsr *WriteStatRequestDotu) EncodedSize() int {
+	return 2 + 4 + 2 + wsr.Stat.EncodedSize()
+}
+
+func (wsr *WriteStatRequestDotu) Unmarshal(b []byte) error {
 	if len(b) < 2+4+2 {
 		return ErrPayloadTooShort
 	}
 
 	wsr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
 	wsr.Fid = Fid(binary.LittleEndian.Uint32(b[2:6]))
-	return wsr.Stat.UnmarshalBinary(b[8:])
+	return wsr.Stat.Unmarshal(b[8:])
 }
 
-// MarshalBinary marshals the message into a byte slice.
-func (wsr *WriteStatRequestDotu) MarshalBinary() ([]byte, error) {
-	x, err := wsr.Stat.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-
-	b := make([]byte, 2+4+2+len(x))
+func (wsr *WriteStatRequestDotu) Marshal(b []byte) error {
 	binary.LittleEndian.PutUint16(b[0:2], uint16(wsr.Tag))
 	binary.LittleEndian.PutUint32(b[2:6], uint32(wsr.Fid))
-	binary.LittleEndian.PutUint16(b[6:8], uint16(len(x)))
-	copy(b[8:], x)
-	return b, nil
+	binary.LittleEndian.PutUint16(b[6:8], uint16(wsr.Stat.EncodedSize()))
+	return wsr.Stat.Marshal(b[8:])
 }

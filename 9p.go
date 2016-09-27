@@ -85,8 +85,16 @@ type Qid struct {
 	Path uint64
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (q *Qid) UnmarshalBinary(b []byte) error {
+func (q *Qid) EncodedSize() int { return 13 }
+
+func (q *Qid) Marshal(b []byte) error {
+	b[0] = byte(q.Type)
+	binary.LittleEndian.PutUint32(b[1:5], q.Version)
+	binary.LittleEndian.PutUint64(b[5:13], q.Path)
+	return nil
+}
+
+func (q *Qid) Unmarshal(b []byte) error {
 	if len(b) < 13 {
 		return ErrPayloadTooShort
 	}
@@ -94,15 +102,6 @@ func (q *Qid) UnmarshalBinary(b []byte) error {
 	q.Version = binary.LittleEndian.Uint32(b[1:5])
 	q.Path = binary.LittleEndian.Uint64(b[5:13])
 	return nil
-}
-
-// MarshalBinary marshals the message into a byte slice.
-func (q *Qid) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 13)
-	b[0] = byte(q.Type)
-	binary.LittleEndian.PutUint32(b[1:5], q.Version)
-	binary.LittleEndian.PutUint64(b[5:13], q.Path)
-	return b, nil
 }
 
 // Stat is a directory entry, providing detailed information of a file. It is
@@ -142,8 +141,55 @@ type Stat struct {
 	MUID string
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (s *Stat) UnmarshalBinary(b []byte) error {
+func (s *Stat) EncodedSize() int {
+	return 2 + 2 + 4 + 13 + 4 + 4 + 4 + 8 + 2 + 2 + 2 + 2 + len(s.Name) + len(s.UID) + len(s.GID) + len(s.MUID)
+}
+
+func (s *Stat) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[2:4], s.Type)
+	binary.LittleEndian.PutUint32(b[4:8], s.Dev)
+
+	// Qid
+	b[8] = byte(s.Qid.Type)
+	binary.LittleEndian.PutUint32(b[9:13], s.Qid.Version)
+	binary.LittleEndian.PutUint64(b[13:21], s.Qid.Path)
+	binary.LittleEndian.PutUint32(b[21:25], uint32(s.Mode))
+	binary.LittleEndian.PutUint32(b[25:29], s.Atime)
+	binary.LittleEndian.PutUint32(b[29:33], s.Mtime)
+	binary.LittleEndian.PutUint64(b[33:41], s.Length)
+
+	// Variable things
+	// Name
+	idx := 41
+	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(s.Name)))
+	idx += 2
+	copy(b[idx:], []byte(s.Name))
+	idx += len(s.Name)
+
+	// UID
+	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(s.UID)))
+	idx += 2
+	copy(b[idx:], []byte(s.UID))
+	idx += len(s.UID)
+
+	// GID
+	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(s.GID)))
+	idx += 2
+	copy(b[idx:], []byte(s.GID))
+	idx += len(s.GID)
+
+	// MUID
+	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(s.MUID)))
+	idx += 2
+	copy(b[idx:], []byte(s.MUID))
+	idx += len(s.MUID)
+
+	// Length prefix
+	binary.LittleEndian.PutUint16(b[0:2], uint16(idx-2))
+	return nil
+}
+
+func (s *Stat) Unmarshal(b []byte) error {
 	t := 2 + 2 + 4 + 13 + 4 + 4 + 4 + 8 + 2 + 2 + 2 + 2
 	if len(b) < t {
 		return ErrPayloadTooShort
@@ -205,51 +251,6 @@ func (s *Stat) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
-// MarshalBinary marshals the message into a byte slice.
-func (s *Stat) MarshalBinary() ([]byte, error) {
-	l := 2 + 2 + 4 + 13 + 4 + 4 + 4 + 8 + 2 + 2 + 2 + 2 + len(s.Name) + len(s.UID) + len(s.GID) + len(s.MUID)
-
-	b := make([]byte, l)
-	binary.LittleEndian.PutUint16(b[0:2], uint16(l-2))
-	binary.LittleEndian.PutUint16(b[2:4], s.Type)
-	binary.LittleEndian.PutUint32(b[4:8], s.Dev)
-
-	// Qid
-	b[8] = byte(s.Qid.Type)
-	binary.LittleEndian.PutUint32(b[9:13], s.Qid.Version)
-	binary.LittleEndian.PutUint64(b[13:21], s.Qid.Path)
-	binary.LittleEndian.PutUint32(b[21:25], uint32(s.Mode))
-	binary.LittleEndian.PutUint32(b[25:29], s.Atime)
-	binary.LittleEndian.PutUint32(b[29:33], s.Mtime)
-	binary.LittleEndian.PutUint64(b[33:41], s.Length)
-
-	// Variable things
-	// Name
-	idx := 41
-	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(s.Name)))
-	idx += 2
-	copy(b[idx:], []byte(s.Name))
-	idx += len(s.Name)
-
-	// UID
-	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(s.UID)))
-	idx += 2
-	copy(b[idx:], []byte(s.UID))
-	idx += len(s.UID)
-
-	// GID
-	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(s.GID)))
-	idx += 2
-	copy(b[idx:], []byte(s.GID))
-	idx += len(s.GID)
-
-	// MUID
-	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(s.MUID)))
-	idx += 2
-	copy(b[idx:], []byte(s.MUID))
-	return b, nil
-}
-
 //
 // Message type structs and the encode/decode methods below.
 //
@@ -269,8 +270,19 @@ type VersionRequest struct {
 	Version string
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (vr *VersionRequest) UnmarshalBinary(b []byte) error {
+func (vr *VersionRequest) EncodedSize() int {
+	return 2 + 4 + 2 + len(vr.Version)
+}
+
+func (vr *VersionRequest) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[0:2], uint16(vr.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(vr.MessageSize))
+	binary.LittleEndian.PutUint16(b[6:8], uint16(len(vr.Version)))
+	copy(b[8:], []byte(vr.Version))
+	return nil
+}
+
+func (vr *VersionRequest) Unmarshal(b []byte) error {
 	t := 2 + 4 + 2
 	if len(b) < t {
 		return ErrPayloadTooShort
@@ -287,16 +299,6 @@ func (vr *VersionRequest) UnmarshalBinary(b []byte) error {
 	vr.Version = string(b[idx+2 : idx+2+l])
 
 	return nil
-}
-
-// MarshalBinary marshals the message into a byte slice.
-func (vr *VersionRequest) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 2+4+2+len(vr.Version))
-	binary.LittleEndian.PutUint16(b[0:2], uint16(vr.Tag))
-	binary.LittleEndian.PutUint32(b[2:6], uint32(vr.MessageSize))
-	binary.LittleEndian.PutUint16(b[6:8], uint16(len(vr.Version)))
-	copy(b[8:], []byte(vr.Version))
-	return b, nil
 }
 
 // VersionResponse is used to inform the client of maximum size and version,
@@ -316,8 +318,17 @@ type VersionResponse struct {
 	Version string
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (vr *VersionResponse) UnmarshalBinary(b []byte) error {
+func (vr *VersionResponse) EncodedSize() int { return 2 + 4 + 2 + len(vr.Version) }
+
+func (vr *VersionResponse) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[0:2], uint16(vr.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(vr.MessageSize))
+	binary.LittleEndian.PutUint16(b[6:8], uint16(len(vr.Version)))
+	copy(b[8:], []byte(vr.Version))
+	return nil
+}
+
+func (vr *VersionResponse) Unmarshal(b []byte) error {
 	t := 2 + 4 + 2
 	if len(b) < t {
 		return ErrPayloadTooShort
@@ -334,16 +345,6 @@ func (vr *VersionResponse) UnmarshalBinary(b []byte) error {
 	vr.Version = string(b[idx+2 : idx+2+l])
 
 	return nil
-}
-
-// MarshalBinary marshals the message into a byte slice.
-func (vr *VersionResponse) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 2+4+2+len(vr.Version))
-	binary.LittleEndian.PutUint16(b[0:2], uint16(vr.Tag))
-	binary.LittleEndian.PutUint32(b[2:6], uint32(vr.MessageSize))
-	binary.LittleEndian.PutUint16(b[6:8], uint16(len(vr.Version)))
-	copy(b[8:], []byte(vr.Version))
-	return b, nil
 }
 
 // AuthRequest is used to request and authentication protocol connection from
@@ -365,8 +366,25 @@ type AuthRequest struct {
 	Service string
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (ar *AuthRequest) UnmarshalBinary(b []byte) error {
+func (ar *AuthRequest) EncodedSize() int {
+	return 2 + 4 + 2 + len(ar.Username) + 2 + len(ar.Service)
+}
+
+func (ar *AuthRequest) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[0:2], uint16(ar.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(ar.AuthFid))
+
+	idx := 6
+	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(ar.Username)))
+	copy(b[idx+2:], []byte(ar.Username))
+	idx += 2 + len(ar.Username)
+
+	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(ar.Service)))
+	copy(b[idx+2:], []byte(ar.Service))
+	return nil
+}
+
+func (ar *AuthRequest) Unmarshal(b []byte) error {
 	t := 2 + 4 + 2 + 2
 	if len(b) < t {
 		return ErrPayloadTooShort
@@ -393,22 +411,6 @@ func (ar *AuthRequest) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
-// MarshalBinary marshals the message into a byte slice.
-func (ar *AuthRequest) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 2+4+2+len(ar.Username)+2+len(ar.Service))
-	binary.LittleEndian.PutUint16(b[0:2], uint16(ar.Tag))
-	binary.LittleEndian.PutUint32(b[2:6], uint32(ar.AuthFid))
-
-	idx := 6
-	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(ar.Username)))
-	copy(b[idx+2:], []byte(ar.Username))
-	idx += 2 + len(ar.Username)
-
-	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(ar.Service)))
-	copy(b[idx+2:], []byte(ar.Service))
-	return b, nil
-}
-
 // AuthResponse is used to acknowledge the authentication protocol connection,
 // and to return the matching Qid.
 type AuthResponse struct {
@@ -419,8 +421,17 @@ type AuthResponse struct {
 	AuthQid Qid
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (ar *AuthResponse) UnmarshalBinary(b []byte) error {
+func (ar *AuthResponse) EncodedSize() int { return 2 + 13 }
+
+func (ar *AuthResponse) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[0:2], uint16(ar.Tag))
+	b[2] = byte(ar.AuthQid.Type)
+	binary.LittleEndian.PutUint32(b[3:7], ar.AuthQid.Version)
+	binary.LittleEndian.PutUint64(b[7:15], ar.AuthQid.Path)
+	return nil
+}
+
+func (ar *AuthResponse) Unmarshal(b []byte) error {
 	if len(b) < 2+13 {
 		return ErrPayloadTooShort
 	}
@@ -430,16 +441,6 @@ func (ar *AuthResponse) UnmarshalBinary(b []byte) error {
 	ar.AuthQid.Version = binary.LittleEndian.Uint32(b[3:7])
 	ar.AuthQid.Path = binary.LittleEndian.Uint64(b[7:15])
 	return nil
-}
-
-// MarshalBinary marshals the message into a byte slice.
-func (ar *AuthResponse) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 2+13)
-	binary.LittleEndian.PutUint16(b[0:2], uint16(ar.Tag))
-	b[2] = byte(ar.AuthQid.Type)
-	binary.LittleEndian.PutUint32(b[3:7], ar.AuthQid.Version)
-	binary.LittleEndian.PutUint64(b[7:15], ar.AuthQid.Path)
-	return b, nil
 }
 
 // AttachRequest is used to establish a connection to a service as a user, and
@@ -464,8 +465,26 @@ type AttachRequest struct {
 	Service string
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (ar *AttachRequest) UnmarshalBinary(b []byte) error {
+func (ar *AttachRequest) EncodedSize() int {
+	return 2 + 4 + 4 + 2 + len(ar.Username) + 2 + len(ar.Service)
+}
+
+func (ar *AttachRequest) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[0:2], uint16(ar.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(ar.Fid))
+	binary.LittleEndian.PutUint32(b[6:10], uint32(ar.AuthFid))
+
+	idx := 10
+	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(ar.Username)))
+	copy(b[idx+2:], []byte(ar.Username))
+	idx += 2 + len(ar.Username)
+
+	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(ar.Service)))
+	copy(b[idx+2:], []byte(ar.Service))
+	return nil
+}
+
+func (ar *AttachRequest) Unmarshal(b []byte) error {
 	t := 2 + 4 + 4 + 2 + 2
 	if len(b) < t {
 		return ErrPayloadTooShort
@@ -493,23 +512,6 @@ func (ar *AttachRequest) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
-// MarshalBinary marshals the message into a byte slice.
-func (ar *AttachRequest) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 2+4+4+2+len(ar.Username)+2+len(ar.Service))
-	binary.LittleEndian.PutUint16(b[0:2], uint16(ar.Tag))
-	binary.LittleEndian.PutUint32(b[2:6], uint32(ar.Fid))
-	binary.LittleEndian.PutUint32(b[6:10], uint32(ar.AuthFid))
-
-	idx := 10
-	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(ar.Username)))
-	copy(b[idx+2:], []byte(ar.Username))
-	idx += 2 + len(ar.Username)
-
-	binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(len(ar.Service)))
-	copy(b[idx+2:], []byte(ar.Service))
-	return b, nil
-}
-
 // AttachResponse acknowledges an attach.
 type AttachResponse struct {
 	Tag
@@ -518,8 +520,17 @@ type AttachResponse struct {
 	Qid Qid
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (ar *AttachResponse) UnmarshalBinary(b []byte) error {
+func (ar *AttachResponse) EncodedSize() int { return 2 + 13 }
+
+func (ar *AttachResponse) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[0:2], uint16(ar.Tag))
+	b[2] = byte(ar.Qid.Type)
+	binary.LittleEndian.PutUint32(b[3:7], ar.Qid.Version)
+	binary.LittleEndian.PutUint64(b[7:15], ar.Qid.Path)
+	return nil
+}
+
+func (ar *AttachResponse) Unmarshal(b []byte) error {
 	if len(b) < 2+13 {
 		return ErrPayloadTooShort
 	}
@@ -529,16 +540,6 @@ func (ar *AttachResponse) UnmarshalBinary(b []byte) error {
 	ar.Qid.Version = binary.LittleEndian.Uint32(b[3:7])
 	ar.Qid.Path = binary.LittleEndian.Uint64(b[7:15])
 	return nil
-}
-
-// MarshalBinary marshals the message into a byte slice.
-func (ar *AttachResponse) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 2+13)
-	binary.LittleEndian.PutUint16(b[0:2], uint16(ar.Tag))
-	b[2] = byte(ar.Qid.Type)
-	binary.LittleEndian.PutUint32(b[3:7], ar.Qid.Version)
-	binary.LittleEndian.PutUint64(b[7:15], ar.Qid.Path)
-	return b, nil
 }
 
 // ErrorResponse is used when the server wants to report and error with the
@@ -551,8 +552,16 @@ type ErrorResponse struct {
 	Error string
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (er *ErrorResponse) UnmarshalBinary(b []byte) error {
+func (er *ErrorResponse) EncodedSize() int { return 2 + 2 + len(er.Error) }
+
+func (er *ErrorResponse) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[0:2], uint16(er.Tag))
+	binary.LittleEndian.PutUint16(b[2:4], uint16(len(er.Error)))
+	copy(b[4:], []byte(er.Error))
+	return nil
+}
+
+func (er *ErrorResponse) Unmarshal(b []byte) error {
 	t := 2 + 2
 	if len(b) < t {
 		return ErrPayloadTooShort
@@ -569,15 +578,6 @@ func (er *ErrorResponse) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
-// MarshalBinary marshals the message into a byte slice.
-func (er *ErrorResponse) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 2+2+len(er.Error))
-	binary.LittleEndian.PutUint16(b[0:2], uint16(er.Tag))
-	binary.LittleEndian.PutUint16(b[2:4], uint16(len(er.Error)))
-	copy(b[4:], []byte(er.Error))
-	return b, nil
-}
-
 // FlushRequest is used to cancel a pending request. The flushed tag can be
 // used after a response have been received.
 type FlushRequest struct {
@@ -587,8 +587,15 @@ type FlushRequest struct {
 	OldTag Tag
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (fr *FlushRequest) UnmarshalBinary(b []byte) error {
+func (fr *FlushRequest) EncodedSize() int { return 2 + 2 }
+
+func (fr *FlushRequest) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[0:2], uint16(fr.Tag))
+	binary.LittleEndian.PutUint16(b[2:4], uint16(fr.OldTag))
+	return nil
+}
+
+func (fr *FlushRequest) Unmarshal(b []byte) error {
 	if len(b) < 2+2 {
 		return ErrPayloadTooShort
 	}
@@ -597,34 +604,25 @@ func (fr *FlushRequest) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
-// MarshalBinary marshals the message into a byte slice.
-func (fr *FlushRequest) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 2+2)
-	binary.LittleEndian.PutUint16(b[0:2], uint16(fr.Tag))
-	binary.LittleEndian.PutUint16(b[2:4], uint16(fr.OldTag))
-	return b, nil
-}
-
 // FlushResponse is used to indicate a successful flush. Do note that
 // FlushResponse have a peculiar behaviour when multiple flushes are pending.
 type FlushResponse struct {
 	Tag
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (fr *FlushResponse) UnmarshalBinary(b []byte) error {
+func (fr *FlushResponse) EncodedSize() int { return 2 }
+
+func (fr *FlushResponse) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[0:2], uint16(fr.Tag))
+	return nil
+}
+
+func (fr *FlushResponse) Unmarshal(b []byte) error {
 	if len(b) < 2 {
 		return ErrPayloadTooShort
 	}
 	fr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
 	return nil
-}
-
-// MarshalBinary marshals the message into a byte slice.
-func (fr *FlushResponse) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 2)
-	binary.LittleEndian.PutUint16(b[0:2], uint16(fr.Tag))
-	return b, nil
 }
 
 // WalkRequest is used to walk into directories, starting from the current fid.
@@ -643,8 +641,31 @@ type WalkRequest struct {
 	Names []string
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (wr *WalkRequest) UnmarshalBinary(b []byte) error {
+func (wr *WalkRequest) EncodedSize() int {
+	l := 2 + 4 + 4 + 2
+	for i := range wr.Names {
+		l += 2 + len(wr.Names[i])
+	}
+
+	return l
+}
+
+func (wr *WalkRequest) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[0:2], uint16(wr.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(wr.Fid))
+	binary.LittleEndian.PutUint32(b[6:10], uint32(wr.NewFid))
+	binary.LittleEndian.PutUint16(b[10:12], uint16(len(wr.Names)))
+	idx := 12
+	for i := range wr.Names {
+		l := len(wr.Names[i])
+		binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(l))
+		copy(b[idx+2:], []byte(wr.Names[i]))
+		idx += 2 + l
+	}
+	return nil
+}
+
+func (wr *WalkRequest) Unmarshal(b []byte) error {
 	t := 2 + 4 + 4 + 2
 	if len(b) < t {
 		return ErrPayloadTooShort
@@ -672,27 +693,6 @@ func (wr *WalkRequest) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
-// MarshalBinary marshals the message into a byte slice.
-func (wr *WalkRequest) MarshalBinary() ([]byte, error) {
-	l := 2 + 4 + 4 + 2
-	for i := range wr.Names {
-		l += 2 + len(wr.Names[i])
-	}
-	b := make([]byte, l)
-	binary.LittleEndian.PutUint16(b[0:2], uint16(wr.Tag))
-	binary.LittleEndian.PutUint32(b[2:6], uint32(wr.Fid))
-	binary.LittleEndian.PutUint32(b[6:10], uint32(wr.NewFid))
-	binary.LittleEndian.PutUint16(b[10:12], uint16(len(wr.Names)))
-	idx := 12
-	for i := range wr.Names {
-		l := len(wr.Names[i])
-		binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(l))
-		copy(b[idx+2:], []byte(wr.Names[i]))
-		idx += 2 + l
-	}
-	return b, nil
-}
-
 // WalkResponse returns the qids for each successfully walked element. If the
 // walk is successful, the amount of qids will be identical to the amount of
 // names.
@@ -703,8 +703,22 @@ type WalkResponse struct {
 	Qids []Qid
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (wr *WalkResponse) UnmarshalBinary(b []byte) error {
+func (wr *WalkResponse) EncodedSize() int { return 2 + 2 + 13*len(wr.Qids) }
+
+func (wr *WalkResponse) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[0:2], uint16(wr.Tag))
+	binary.LittleEndian.PutUint16(b[2:4], uint16(len(wr.Qids)))
+	idx := 4
+	for i := range wr.Qids {
+		b[idx] = byte(wr.Qids[i].Type)
+		binary.LittleEndian.PutUint32(b[idx+1:idx+5], wr.Qids[i].Version)
+		binary.LittleEndian.PutUint64(b[idx+5:idx+13], wr.Qids[i].Path)
+		idx += 13
+	}
+	return nil
+}
+
+func (wr *WalkResponse) Unmarshal(b []byte) error {
 	t := 2 + 2
 	if len(b) < t {
 		return ErrPayloadTooShort
@@ -726,21 +740,6 @@ func (wr *WalkResponse) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
-// MarshalBinary marshals the message into a byte slice.
-func (wr *WalkResponse) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 2+2+13*len(wr.Qids))
-	binary.LittleEndian.PutUint16(b[0:2], uint16(wr.Tag))
-	binary.LittleEndian.PutUint16(b[2:4], uint16(len(wr.Qids)))
-	idx := 4
-	for i := range wr.Qids {
-		b[idx] = byte(wr.Qids[i].Type)
-		binary.LittleEndian.PutUint32(b[idx+1:idx+5], wr.Qids[i].Version)
-		binary.LittleEndian.PutUint64(b[idx+5:idx+13], wr.Qids[i].Path)
-		idx += 13
-	}
-	return b, nil
-}
-
 // OpenRequest is used to open a fid for reading/writing/executing.
 type OpenRequest struct {
 	Tag
@@ -752,8 +751,16 @@ type OpenRequest struct {
 	Mode OpenMode
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (or *OpenRequest) UnmarshalBinary(b []byte) error {
+func (or *OpenRequest) EncodedSize() int { return 2 + 4 + 1 }
+
+func (or *OpenRequest) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[0:2], uint16(or.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(or.Fid))
+	b[6] = byte(or.Mode)
+	return nil
+}
+
+func (or *OpenRequest) Unmarshal(b []byte) error {
 	if len(b) < 2+4+1 {
 		return ErrPayloadTooShort
 	}
@@ -762,15 +769,6 @@ func (or *OpenRequest) UnmarshalBinary(b []byte) error {
 	or.Fid = Fid(binary.LittleEndian.Uint32(b[2:6]))
 	or.Mode = OpenMode(b[6])
 	return nil
-}
-
-// MarshalBinary marshals the message into a byte slice.
-func (or *OpenRequest) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 2+4+1)
-	binary.LittleEndian.PutUint16(b[0:2], uint16(or.Tag))
-	binary.LittleEndian.PutUint32(b[2:6], uint32(or.Fid))
-	b[6] = byte(or.Mode)
-	return b, nil
 }
 
 // OpenResponse returns the qid of the file, as well as iounit, which is a
@@ -787,8 +785,18 @@ type OpenResponse struct {
 	IOUnit uint32
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (or *OpenResponse) UnmarshalBinary(b []byte) error {
+func (or *OpenResponse) EncodedSize() int { return 2 + 13 + 4 }
+
+func (or *OpenResponse) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[0:2], uint16(or.Tag))
+	b[2] = byte(or.Qid.Type)
+	binary.LittleEndian.PutUint32(b[3:7], or.Qid.Version)
+	binary.LittleEndian.PutUint64(b[7:15], or.Qid.Path)
+	binary.LittleEndian.PutUint32(b[15:19], or.IOUnit)
+	return nil
+}
+
+func (or *OpenResponse) Unmarshal(b []byte) error {
 	if len(b) < 2+13+4 {
 		return ErrPayloadTooShort
 	}
@@ -799,17 +807,6 @@ func (or *OpenResponse) UnmarshalBinary(b []byte) error {
 	or.Qid.Path = binary.LittleEndian.Uint64(b[7:15])
 	or.IOUnit = binary.LittleEndian.Uint32(b[15:19])
 	return nil
-}
-
-// MarshalBinary marshals the message into a byte slice.
-func (or *OpenResponse) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 2+13+4)
-	binary.LittleEndian.PutUint16(b[0:2], uint16(or.Tag))
-	b[2] = byte(or.Qid.Type)
-	binary.LittleEndian.PutUint32(b[3:7], or.Qid.Version)
-	binary.LittleEndian.PutUint64(b[7:15], or.Qid.Path)
-	binary.LittleEndian.PutUint32(b[15:19], or.IOUnit)
-	return b, nil
 }
 
 // CreateRequest tries to create a file in the current directory with the
@@ -833,8 +830,23 @@ type CreateRequest struct {
 	Mode OpenMode
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (cr *CreateRequest) UnmarshalBinary(b []byte) error {
+func (cr *CreateRequest) EncodedSize() int { return 2 + 4 + 2 + len(cr.Name) + 4 + 1 }
+
+func (cr *CreateRequest) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[0:2], uint16(cr.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(cr.Fid))
+	binary.LittleEndian.PutUint16(b[6:8], uint16(len(cr.Name)))
+
+	idx := 8
+	copy(b[idx:idx+len(cr.Name)], []byte(cr.Name))
+	idx += len(cr.Name)
+
+	binary.LittleEndian.PutUint32(b[idx:idx+4], uint32(cr.Permissions))
+	b[idx+4] = byte(cr.Mode)
+	return nil
+}
+
+func (cr *CreateRequest) Unmarshal(b []byte) error {
 	t := 2 + 4 + 2 + 4 + 1
 	if len(b) < t {
 		return ErrPayloadTooShort
@@ -854,22 +866,6 @@ func (cr *CreateRequest) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
-// MarshalBinary marshals the message into a byte slice.
-func (cr *CreateRequest) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 2+4+2+len(cr.Name)+4+1)
-	binary.LittleEndian.PutUint16(b[0:2], uint16(cr.Tag))
-	binary.LittleEndian.PutUint32(b[2:6], uint32(cr.Fid))
-	binary.LittleEndian.PutUint16(b[6:8], uint16(len(cr.Name)))
-
-	idx := 8
-	copy(b[idx:idx+len(cr.Name)], []byte(cr.Name))
-	idx += len(cr.Name)
-
-	binary.LittleEndian.PutUint32(b[idx:idx+4], uint32(cr.Permissions))
-	b[idx+4] = byte(cr.Mode)
-	return b, nil
-}
-
 // CreateResponse returns the qid of the file, as well as iounit, which is a
 // read/write size that is guaranteed to be successfully written/read, or 0
 // for no such guarantee.
@@ -884,8 +880,18 @@ type CreateResponse struct {
 	IOUnit uint32
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (cr *CreateResponse) UnmarshalBinary(b []byte) error {
+func (cr *CreateResponse) EncodedSize() int { return 2 + 13 + 4 }
+
+func (cr *CreateResponse) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[0:2], uint16(cr.Tag))
+	b[3] = byte(cr.Qid.Type)
+	binary.LittleEndian.PutUint32(b[3:7], cr.Qid.Version)
+	binary.LittleEndian.PutUint64(b[7:15], cr.Qid.Path)
+	binary.LittleEndian.PutUint32(b[15:19], cr.IOUnit)
+	return nil
+}
+
+func (cr *CreateResponse) Unmarshal(b []byte) error {
 	if len(b) < 2+13+4 {
 		return ErrPayloadTooShort
 	}
@@ -895,17 +901,6 @@ func (cr *CreateResponse) UnmarshalBinary(b []byte) error {
 	cr.Qid.Path = binary.LittleEndian.Uint64(b[7:15])
 	cr.IOUnit = binary.LittleEndian.Uint32(b[15:19])
 	return nil
-}
-
-// MarshalBinary marshals the message into a byte slice.
-func (cr *CreateResponse) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 2+13+4)
-	binary.LittleEndian.PutUint16(b[0:2], uint16(cr.Tag))
-	b[3] = byte(cr.Qid.Type)
-	binary.LittleEndian.PutUint32(b[3:7], cr.Qid.Version)
-	binary.LittleEndian.PutUint64(b[7:15], cr.Qid.Path)
-	binary.LittleEndian.PutUint32(b[15:19], cr.IOUnit)
-	return b, nil
 }
 
 // ReadRequest is used to read data from an open file.
@@ -922,8 +917,17 @@ type ReadRequest struct {
 	Count uint32
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (rr *ReadRequest) UnmarshalBinary(b []byte) error {
+func (rr *ReadRequest) EncodedSize() int { return 2 + 4 + 8 + 4 }
+
+func (rr *ReadRequest) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[0:2], uint16(rr.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(rr.Fid))
+	binary.LittleEndian.PutUint64(b[6:14], rr.Offset)
+	binary.LittleEndian.PutUint32(b[14:18], rr.Count)
+	return nil
+}
+
+func (rr *ReadRequest) Unmarshal(b []byte) error {
 	if len(b) < 2+4+8+4 {
 		return ErrPayloadTooShort
 	}
@@ -935,16 +939,6 @@ func (rr *ReadRequest) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
-// MarshalBinary marshals the message into a byte slice.
-func (rr *ReadRequest) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 2+4+8+4)
-	binary.LittleEndian.PutUint16(b[0:2], uint16(rr.Tag))
-	binary.LittleEndian.PutUint32(b[2:6], uint32(rr.Fid))
-	binary.LittleEndian.PutUint64(b[6:14], rr.Offset)
-	binary.LittleEndian.PutUint32(b[14:18], rr.Count)
-	return b, nil
-}
-
 // ReadResponse  is used to return the read data.
 type ReadResponse struct {
 	Tag
@@ -953,8 +947,16 @@ type ReadResponse struct {
 	Data []byte
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (rr *ReadResponse) UnmarshalBinary(b []byte) error {
+func (rr *ReadResponse) EncodedSize() int { return 2 + 4 + len(rr.Data) }
+
+func (rr *ReadResponse) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[0:2], uint16(rr.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(len(rr.Data)))
+	copy(b[6:], rr.Data)
+	return nil
+}
+
+func (rr *ReadResponse) Unmarshal(b []byte) error {
 	if len(b) < 2+4 {
 		return ErrPayloadTooShort
 	}
@@ -967,15 +969,6 @@ func (rr *ReadResponse) UnmarshalBinary(b []byte) error {
 	rr.Data = make([]byte, l)
 	copy(rr.Data, b[6:6+l])
 	return nil
-}
-
-// MarshalBinary marshals the message into a byte slice.
-func (rr *ReadResponse) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 2+4+len(rr.Data))
-	binary.LittleEndian.PutUint16(b[0:2], uint16(rr.Tag))
-	binary.LittleEndian.PutUint32(b[2:6], uint32(len(rr.Data)))
-	copy(b[6:], rr.Data)
-	return b, nil
 }
 
 // WriteRequest is used to write to an open file.
@@ -992,8 +985,20 @@ type WriteRequest struct {
 	Data []byte
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (wr *WriteRequest) UnmarshalBinary(b []byte) error {
+func (wr *WriteRequest) EncodedSize() int {
+	return 2 + 4 + 8 + 4 + len(wr.Data)
+}
+
+func (wr *WriteRequest) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[0:2], uint16(wr.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(wr.Fid))
+	binary.LittleEndian.PutUint64(b[6:14], wr.Offset)
+	binary.LittleEndian.PutUint32(b[14:18], uint32(len(wr.Data)))
+	copy(b[18:], wr.Data)
+	return nil
+}
+
+func (wr *WriteRequest) Unmarshal(b []byte) error {
 	t := 2 + 4 + 8 + 4
 	if len(b) < t {
 		return ErrPayloadTooShort
@@ -1013,17 +1018,6 @@ func (wr *WriteRequest) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
-// MarshalBinary marshals the message into a byte slice.
-func (wr *WriteRequest) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 2+4+8+4+len(wr.Data))
-	binary.LittleEndian.PutUint16(b[0:2], uint16(wr.Tag))
-	binary.LittleEndian.PutUint32(b[2:6], uint32(wr.Fid))
-	binary.LittleEndian.PutUint64(b[6:14], wr.Offset)
-	binary.LittleEndian.PutUint32(b[14:18], uint32(len(wr.Data)))
-	copy(b[18:], wr.Data)
-	return b, nil
-}
-
 // WriteResponse is used to inform of how much data was written.
 type WriteResponse struct {
 	Tag
@@ -1032,8 +1026,15 @@ type WriteResponse struct {
 	Count uint32
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (wr *WriteResponse) UnmarshalBinary(b []byte) error {
+func (wr *WriteResponse) EncodedSize() int { return 2 + 4 }
+
+func (wr *WriteResponse) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[0:2], uint16(wr.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], wr.Count)
+	return nil
+}
+
+func (wr *WriteResponse) Unmarshal(b []byte) error {
 	if len(b) < 2+4 {
 		return ErrPayloadTooShort
 	}
@@ -1041,14 +1042,6 @@ func (wr *WriteResponse) UnmarshalBinary(b []byte) error {
 	wr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
 	wr.Count = binary.LittleEndian.Uint32(b[2:6])
 	return nil
-}
-
-// MarshalBinary marshals the message into a byte slice.
-func (wr *WriteResponse) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 2+4)
-	binary.LittleEndian.PutUint16(b[0:2], uint16(wr.Tag))
-	binary.LittleEndian.PutUint32(b[2:6], wr.Count)
-	return b, nil
 }
 
 // ClunkRequest is used to clear a fid, allowing it to be reused.
@@ -1059,8 +1052,15 @@ type ClunkRequest struct {
 	Fid Fid
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (cr *ClunkRequest) UnmarshalBinary(b []byte) error {
+func (cr *ClunkRequest) EncodedSize() int { return 2 + 4 }
+
+func (cr *ClunkRequest) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[0:2], uint16(cr.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(cr.Fid))
+	return nil
+}
+
+func (cr *ClunkRequest) Unmarshal(b []byte) error {
 	if len(b) < 2+4 {
 		return ErrPayloadTooShort
 	}
@@ -1070,34 +1070,25 @@ func (cr *ClunkRequest) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
-// MarshalBinary marshals the message into a byte slice.
-func (cr *ClunkRequest) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 2+4)
-	binary.LittleEndian.PutUint16(b[0:2], uint16(cr.Tag))
-	binary.LittleEndian.PutUint32(b[2:6], uint32(cr.Fid))
-	return b, nil
-}
-
 // ClunkResponse indicates a successful clunk.
 type ClunkResponse struct {
 	Tag
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (cr *ClunkResponse) UnmarshalBinary(b []byte) error {
+func (cr *ClunkResponse) EncodedSize() int { return 2 }
+
+func (cr *ClunkResponse) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[0:2], uint16(cr.Tag))
+	return nil
+}
+
+func (cr *ClunkResponse) Unmarshal(b []byte) error {
 	if len(b) < 2 {
 		return ErrPayloadTooShort
 	}
 
 	cr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
 	return nil
-}
-
-// MarshalBinary marshals the message into a byte slice.
-func (cr *ClunkResponse) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 2)
-	binary.LittleEndian.PutUint16(b[0:2], uint16(cr.Tag))
-	return b, nil
 }
 
 // RemoveRequest is used to clunk a fid and remove the file if possible.
@@ -1108,8 +1099,15 @@ type RemoveRequest struct {
 	Fid Fid
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (rr *RemoveRequest) UnmarshalBinary(b []byte) error {
+func (rr *RemoveRequest) EncodedSize() int { return 2 + 4 }
+
+func (rr *RemoveRequest) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[0:2], uint16(rr.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(rr.Fid))
+	return nil
+}
+
+func (rr *RemoveRequest) Unmarshal(b []byte) error {
 	if len(b) < 2+4 {
 		return ErrPayloadTooShort
 	}
@@ -1119,34 +1117,25 @@ func (rr *RemoveRequest) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
-// MarshalBinary marshals the message into a byte slice.
-func (rr *RemoveRequest) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 2+4)
-	binary.LittleEndian.PutUint16(b[0:2], uint16(rr.Tag))
-	binary.LittleEndian.PutUint32(b[2:6], uint32(rr.Fid))
-	return b, nil
-}
-
 // RemoveResponse indicates a successful clunk, but not necessarily a successful remove.
 type RemoveResponse struct {
 	Tag
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (rr *RemoveResponse) UnmarshalBinary(b []byte) error {
+func (rr *RemoveResponse) EncodedSize() int { return 2 }
+
+func (rr *RemoveResponse) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[0:2], uint16(rr.Tag))
+	return nil
+}
+
+func (rr *RemoveResponse) Unmarshal(b []byte) error {
 	if len(b) < 2 {
 		return ErrPayloadTooShort
 	}
 
 	rr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
 	return nil
-}
-
-// MarshalBinary marshals the message into a byte slice.
-func (rr *RemoveResponse) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 2)
-	binary.LittleEndian.PutUint16(b[0:2], uint16(rr.Tag))
-	return b, nil
 }
 
 // StatRequest is used to retrieve the Stat struct of a file
@@ -1157,8 +1146,15 @@ type StatRequest struct {
 	Fid Fid
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (sr *StatRequest) UnmarshalBinary(b []byte) error {
+func (sr *StatRequest) EncodedSize() int { return 2 + 4 }
+
+func (sr *StatRequest) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[0:2], uint16(sr.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(sr.Fid))
+	return nil
+}
+
+func (sr *StatRequest) Unmarshal(b []byte) error {
 	if len(b) < 2+4 {
 		return ErrPayloadTooShort
 	}
@@ -1166,14 +1162,6 @@ func (sr *StatRequest) UnmarshalBinary(b []byte) error {
 	sr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
 	sr.Fid = Fid(binary.LittleEndian.Uint32(b[2:6]))
 	return nil
-}
-
-// MarshalBinary marshals the message into a byte slice.
-func (sr *StatRequest) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 2+4)
-	binary.LittleEndian.PutUint16(b[0:2], uint16(sr.Tag))
-	binary.LittleEndian.PutUint32(b[2:6], uint32(sr.Fid))
-	return b, nil
 }
 
 // StatResponse contains the Stat struct of a file.
@@ -1184,28 +1172,23 @@ type StatResponse struct {
 	Stat Stat
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (sr *StatResponse) UnmarshalBinary(b []byte) error {
+func (sr *StatResponse) EncodedSize() int {
+	return 2 + 2 + sr.Stat.EncodedSize()
+}
+
+func (sr *StatResponse) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[0:2], uint16(sr.Tag))
+	binary.LittleEndian.PutUint16(b[2:4], uint16(sr.Stat.EncodedSize()))
+	return sr.Stat.Marshal(b[4:])
+}
+
+func (sr *StatResponse) Unmarshal(b []byte) error {
 	if len(b) < 2+2 {
 		return ErrPayloadTooShort
 	}
 
 	sr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
-	return sr.Stat.UnmarshalBinary(b[4:])
-}
-
-// MarshalBinary marshals the message into a byte slice.
-func (sr *StatResponse) MarshalBinary() ([]byte, error) {
-	x, err := sr.Stat.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-
-	b := make([]byte, 2+2+len(x))
-	binary.LittleEndian.PutUint16(b[0:2], uint16(sr.Tag))
-	binary.LittleEndian.PutUint16(b[2:4], uint16(len(x)))
-	copy(b[4:], x)
-	return b, nil
+	return sr.Stat.Unmarshal(b[4:])
 }
 
 // WriteStatRequest attempts to apply a Stat struct to a file. This requires a
@@ -1226,30 +1209,25 @@ type WriteStatRequest struct {
 	Stat Stat
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (wsr *WriteStatRequest) UnmarshalBinary(b []byte) error {
+func (wsr *WriteStatRequest) EncodedSize() int {
+	return 2 + 4 + 2 + wsr.Stat.EncodedSize()
+}
+
+func (wsr *WriteStatRequest) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[0:2], uint16(wsr.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(wsr.Fid))
+	binary.LittleEndian.PutUint16(b[6:8], uint16(wsr.Stat.EncodedSize()))
+	return wsr.Stat.Marshal(b[8:])
+}
+
+func (wsr *WriteStatRequest) Unmarshal(b []byte) error {
 	if len(b) < 2+4+2 {
 		return ErrPayloadTooShort
 	}
 
 	wsr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
 	wsr.Fid = Fid(binary.LittleEndian.Uint32(b[2:6]))
-	return wsr.Stat.UnmarshalBinary(b[8:])
-}
-
-// MarshalBinary marshals the message into a byte slice.
-func (wsr *WriteStatRequest) MarshalBinary() ([]byte, error) {
-	x, err := wsr.Stat.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-
-	b := make([]byte, 2+4+2+len(x))
-	binary.LittleEndian.PutUint16(b[0:2], uint16(wsr.Tag))
-	binary.LittleEndian.PutUint32(b[2:6], uint32(wsr.Fid))
-	binary.LittleEndian.PutUint16(b[6:8], uint16(len(x)))
-	copy(b[8:], x)
-	return b, nil
+	return wsr.Stat.Unmarshal(b[8:])
 }
 
 // WriteStatResponse indicates a successful application of a Stat structure.
@@ -1257,18 +1235,17 @@ type WriteStatResponse struct {
 	Tag
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (wsr *WriteStatResponse) UnmarshalBinary(b []byte) error {
+func (wsr *WriteStatResponse) EncodedSize() int { return 2 }
+
+func (wsr *WriteStatResponse) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[0:2], uint16(wsr.Tag))
+	return nil
+}
+
+func (wsr *WriteStatResponse) Unmarshal(b []byte) error {
 	if len(b) < 2 {
 		return ErrPayloadTooShort
 	}
 	wsr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
 	return nil
-}
-
-// MarshalBinary marshals the message into a byte slice.
-func (wsr *WriteStatResponse) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 2)
-	binary.LittleEndian.PutUint16(b[0:2], uint16(wsr.Tag))
-	return b, nil
 }

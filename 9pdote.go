@@ -30,8 +30,15 @@ type SessionRequestDote struct {
 	Key [8]byte
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (sr *SessionRequestDote) UnmarshalBinary(b []byte) error {
+func (sr *SessionRequestDote) EncodedSize() int { return 2 + 8 }
+
+func (sr *SessionRequestDote) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[0:2], uint16(sr.Tag))
+	copy(b[2:], sr.Key[:])
+	return nil
+}
+
+func (sr *SessionRequestDote) Unmarshal(b []byte) error {
 	if len(b) < 2+8 {
 		return ErrPayloadTooShort
 	}
@@ -40,33 +47,24 @@ func (sr *SessionRequestDote) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
-// MarshalBinary marshals the message into a byte slice.
-func (sr *SessionRequestDote) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 2+8)
-	binary.LittleEndian.PutUint16(b[0:2], uint16(sr.Tag))
-	copy(b[2:], sr.Key[:])
-	return b, nil
-}
-
 // SessionResponseDote is used to indicate a successful session restore.
 type SessionResponseDote struct {
 	Tag
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (sr *SessionResponseDote) UnmarshalBinary(b []byte) error {
+func (sr *SessionResponseDote) EncodedSize() int { return 2 }
+
+func (sr *SessionResponseDote) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[0:2], uint16(sr.Tag))
+	return nil
+}
+
+func (sr *SessionResponseDote) Unmarshal(b []byte) error {
 	if len(b) < 2 {
 		return ErrPayloadTooShort
 	}
 	sr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
 	return nil
-}
-
-// MarshalBinary marshals the message into a byte slice.
-func (sr *SessionResponseDote) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 2)
-	binary.LittleEndian.PutUint16(b[0:2], uint16(sr.Tag))
-	return b, nil
 }
 
 // SimpleReadRequestDote is used to quickly read a file. The request is
@@ -82,8 +80,30 @@ type SimpleReadRequestDote struct {
 	Names []string
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (srr *SimpleReadRequestDote) UnmarshalBinary(b []byte) error {
+func (srr *SimpleReadRequestDote) EncodedSize() int {
+	l := 2 + 4 + 2
+	for i := range srr.Names {
+		l += 2 + len(srr.Names[i])
+	}
+
+	return l
+}
+
+func (srr *SimpleReadRequestDote) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[0:2], uint16(srr.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(srr.Fid))
+	binary.LittleEndian.PutUint16(b[6:8], uint16(len(srr.Names)))
+	idx := 8
+	for i := range srr.Names {
+		l := len(srr.Names[i])
+		binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(l))
+		copy(b[idx+2:], []byte(srr.Names[i]))
+		idx += 2 + l
+	}
+	return nil
+}
+
+func (srr *SimpleReadRequestDote) Unmarshal(b []byte) error {
 	t := 2 + 4 + 2
 	if len(b) < t {
 		return ErrPayloadTooShort
@@ -108,26 +128,6 @@ func (srr *SimpleReadRequestDote) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
-// MarshalBinary marshals the message into a byte slice.
-func (srr *SimpleReadRequestDote) MarshalBinary() ([]byte, error) {
-	l := 2 + 4 + 2
-	for i := range srr.Names {
-		l += 2 + len(srr.Names[i])
-	}
-	b := make([]byte, l)
-	binary.LittleEndian.PutUint16(b[0:2], uint16(srr.Tag))
-	binary.LittleEndian.PutUint32(b[2:6], uint32(srr.Fid))
-	binary.LittleEndian.PutUint16(b[6:8], uint16(len(srr.Names)))
-	idx := 8
-	for i := range srr.Names {
-		l := len(srr.Names[i])
-		binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(l))
-		copy(b[idx+2:], []byte(srr.Names[i]))
-		idx += 2 + l
-	}
-	return b, nil
-}
-
 // SimpleReadResponseDote is used to return the read data.
 type SimpleReadResponseDote struct {
 	Tag
@@ -135,8 +135,18 @@ type SimpleReadResponseDote struct {
 	Data []byte
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (srr *SimpleReadResponseDote) UnmarshalBinary(b []byte) error {
+func (srr *SimpleReadResponseDote) EncodedSize() int {
+	return 2+4+len(srr.Data)
+}
+
+func (srr *SimpleReadResponseDote) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[0:2], uint16(srr.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(len(srr.Data)))
+	copy(b[6:], srr.Data)
+	return nil
+}
+
+func (srr *SimpleReadResponseDote) Unmarshal(b []byte) error {
 	if len(b) < 2+4 {
 		return ErrPayloadTooShort
 	}
@@ -149,15 +159,6 @@ func (srr *SimpleReadResponseDote) UnmarshalBinary(b []byte) error {
 	srr.Data = make([]byte, l)
 	copy(srr.Data, b[6:6+l])
 	return nil
-}
-
-// MarshalBinary marshals the message into a byte slice.
-func (srr *SimpleReadResponseDote) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 2+4+len(srr.Data))
-	binary.LittleEndian.PutUint16(b[0:2], uint16(srr.Tag))
-	binary.LittleEndian.PutUint32(b[2:6], uint32(len(srr.Data)))
-	copy(b[6:], srr.Data)
-	return b, nil
 }
 
 // SimpleWriteRequestDote is used to quickly create a file if it doesn't
@@ -177,8 +178,31 @@ type SimpleWriteRequestDote struct {
 	Data []byte
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (swr *SimpleWriteRequestDote) UnmarshalBinary(b []byte) error {
+func (swr *SimpleWriteRequestDote) EncodedSize() int {
+	l := 2 + 4 + 2 + 4 + len(swr.Data)
+	for i := range swr.Names {
+		l += 2 + len(swr.Names[i])
+	}
+	return l
+}
+
+func (swr *SimpleWriteRequestDote) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[0:2], uint16(swr.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], uint32(swr.Fid))
+	binary.LittleEndian.PutUint16(b[6:8], uint16(len(swr.Names)))
+	idx := 8
+	for i := range swr.Names {
+		l := len(swr.Names[i])
+		binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(l))
+		copy(b[idx+2:], []byte(swr.Names[i]))
+		idx += 2 + l
+	}
+	binary.LittleEndian.PutUint32(b[idx:idx+4], uint32(len(swr.Data)))
+	copy(b[idx+4:], swr.Data)
+	return nil
+}
+
+func (swr *SimpleWriteRequestDote) Unmarshal(b []byte) error {
 	t := 2 + 4 + 2 + 4
 	if len(b) < t {
 		return ErrPayloadTooShort
@@ -209,28 +233,6 @@ func (swr *SimpleWriteRequestDote) UnmarshalBinary(b []byte) error {
 	return nil
 }
 
-// MarshalBinary marshals the message into a byte slice.
-func (swr *SimpleWriteRequestDote) MarshalBinary() ([]byte, error) {
-	l := 2 + 4 + 2 + 4 + len(swr.Data)
-	for i := range swr.Names {
-		l += 2 + len(swr.Names[i])
-	}
-	b := make([]byte, l)
-	binary.LittleEndian.PutUint16(b[0:2], uint16(swr.Tag))
-	binary.LittleEndian.PutUint32(b[2:6], uint32(swr.Fid))
-	binary.LittleEndian.PutUint16(b[6:8], uint16(len(swr.Names)))
-	idx := 8
-	for i := range swr.Names {
-		l := len(swr.Names[i])
-		binary.LittleEndian.PutUint16(b[idx:idx+2], uint16(l))
-		copy(b[idx+2:], []byte(swr.Names[i]))
-		idx += 2 + l
-	}
-	binary.LittleEndian.PutUint32(b[idx:idx+4], uint32(len(swr.Data)))
-	copy(b[idx+4:], swr.Data)
-	return b, nil
-}
-
 // SimpleWriteResponseDote is used to inform of how much data was written.
 type SimpleWriteResponseDote struct {
 	Tag
@@ -238,8 +240,15 @@ type SimpleWriteResponseDote struct {
 	Count uint32
 }
 
-// UnmarshalBinary unmarshals the message from the provided byte slice.
-func (swr *SimpleWriteResponseDote) UnmarshalBinary(b []byte) error {
+func (swr *SimpleWriteResponseDote) EncodedSize() int { return 2 + 4 }
+
+func (swr *SimpleWriteResponseDote) Marshal(b []byte) error {
+	binary.LittleEndian.PutUint16(b[0:2], uint16(swr.Tag))
+	binary.LittleEndian.PutUint32(b[2:6], swr.Count)
+	return nil
+}
+
+func (swr *SimpleWriteResponseDote) Unmarshal(b []byte) error {
 	if len(b) < 2+4 {
 		return ErrPayloadTooShort
 	}
@@ -247,12 +256,4 @@ func (swr *SimpleWriteResponseDote) UnmarshalBinary(b []byte) error {
 	swr.Tag = Tag(binary.LittleEndian.Uint16(b[0:2]))
 	swr.Count = binary.LittleEndian.Uint32(b[2:6])
 	return nil
-}
-
-// MarshalBinary marshals the message into a byte slice.
-func (swr *SimpleWriteResponseDote) MarshalBinary() ([]byte, error) {
-	b := make([]byte, 2+4)
-	binary.LittleEndian.PutUint16(b[0:2], uint16(swr.Tag))
-	binary.LittleEndian.PutUint32(b[2:6], swr.Count)
-	return b, nil
 }
