@@ -8,7 +8,7 @@ install:
   - test() { go test "${1}" -coverprofile=o.txt -covermode=atomic -race && (if [ -e o.txt ]; then cat o.txt >> coverage.txt; rm o.txt; fi; true)}
 
 script:
-  - test github.com/joushou/qp
+  - test github.com/kennylevinsen/qp
 
 notifications:
   email: false
