@@ -9,6 +9,7 @@ import (
 type Marshallable interface {
 	Marshal(b []byte) error
 	Unmarshal(b []byte) error
+	EncodedSize() int
 }
 
 type PrimitiveTestEntry struct {
@@ -310,11 +311,11 @@ func CompareMarshallables(a, b Marshallable) bool {
 
 func reencode(i int, in Marshallable, reference []byte, t *testing.T, p Protocol) {
 	var (
-		s   []byte
+		s   = make([]byte, in.EncodedSize())
 		err error
 	)
 
-	if s, err = in.MarshalBinary(); err != nil {
+	if err = in.Marshal(s); err != nil {
 		t.Errorf("test %d: encoding failed for %T: %v", i, in, err)
 		return
 	}
@@ -324,7 +325,7 @@ func reencode(i int, in Marshallable, reference []byte, t *testing.T, p Protocol
 	}
 	// Magic to construct a new codec of the input type
 	other := ConstructNewMarshallable(in)
-	if err = other.UnmarshalBinary(s); err != nil {
+	if err = other.Unmarshal(s); err != nil {
 		t.Errorf("test %d: decoding failed for %T: %v", i, in, err)
 		return
 	}
@@ -343,7 +344,7 @@ func testUnmarshal(t *testing.T, i int, r Marshallable, x []byte) {
 	}()
 	var err error
 	for len(x) > 0 {
-		err = r.UnmarshalBinary(x)
+		err = r.Unmarshal(x)
 		if err != ErrPayloadTooShort {
 			t.Errorf("test %d: short unmarshal for %T at length %d did not fail as expected: %v", i, r, len(x), err)
 			return
